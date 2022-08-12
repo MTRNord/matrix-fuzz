@@ -1,8 +1,9 @@
+use arbitrary::Arbitrary;
 use fuzzcheck::DefaultMutator;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, Arbitrary)]
 pub struct CreateRoomMagicJSON {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub creation_content: Option<HashMap<String, String>>,
@@ -74,7 +75,7 @@ impl From<&CreateRoomMagic> for CreateRoomMagicJSON {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default, DefaultMutator)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, DefaultMutator, Arbitrary)]
 pub struct CreateRoomMagic {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub creation_content_keys: Option<Vec<String>>,
@@ -103,7 +104,7 @@ pub struct CreateRoomMagic {
     pub visibility: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, DefaultMutator, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, DefaultMutator, Default, Arbitrary)]
 pub struct Invite3pid {
     pub address: String,
     pub id_access_token: String,
@@ -111,7 +112,7 @@ pub struct Invite3pid {
     pub medium: String,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, Arbitrary)]
 pub struct StateEventJSON {
     pub content: HashMap<String, String>,
     #[serde(rename = "type")]
@@ -150,7 +151,7 @@ impl From<StateEvent> for StateEventJSON {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, DefaultMutator, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, DefaultMutator, Default, Arbitrary)]
 pub struct StateEvent {
     pub content_keys: Vec<String>,
     pub content_values: Vec<String>,

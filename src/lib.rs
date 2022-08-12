@@ -7,17 +7,17 @@ use crate::types::{Flow, LoginGet, LoginPost};
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 
-mod secrets;
-mod types;
+pub mod secrets;
+pub mod types;
 
 #[no_coverage]
-fn access_token() -> &'static String {
+pub fn access_token() -> &'static String {
     static INSTANCE: OnceCell<String> = OnceCell::new();
     INSTANCE.get_or_init(login)
 }
 
 #[no_coverage]
-fn client() -> &'static reqwest::blocking::Client {
+pub fn client() -> &'static reqwest::blocking::Client {
     static INSTANCE: OnceCell<reqwest::blocking::Client> = OnceCell::new();
     INSTANCE.get_or_init(|| {
         reqwest::blocking::Client::builder()
@@ -134,17 +134,17 @@ mod tests {
         // FIXME: We probably should set it to null and not do a false positive
         // HACK due to https://github.com/matrix-org/synapse/issues/13510
         if let Some(room_alias_name) = &data.room_alias_name {
-            if room_alias_name.contains("\0") {
+            if room_alias_name.contains('\0') {
                 return true;
             }
         }
         // HACK due to NUL in type or state_key
         if let Some(initial_state) = &data.initial_state {
             for state in initial_state {
-                if state._type.contains("\0") {
+                if state._type.contains('\0') {
                     return true;
                 }
-                if state.state_key.contains("\0") {
+                if state.state_key.contains('\0') {
                     return true;
                 }
             }
@@ -168,7 +168,7 @@ mod tests {
             .json(&json_data)
             .send();
         if let Ok(resp) = resp {
-            let status = resp.status().clone();
+            let status = resp.status();
             if !status.is_success() {
                 //println!("Status: {:?}", status);
                 let content = resp.text();

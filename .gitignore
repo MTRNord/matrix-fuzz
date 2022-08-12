@@ -5,3 +5,4 @@ src/secrets.rs
 /fuzz
 /meep.rs
 /weird_ones/security_issues
+/afl/*/out/*
