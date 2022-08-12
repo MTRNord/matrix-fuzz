@@ -23,7 +23,7 @@ Matrix fuzzing is a dumb fuzzer fuzzing a few matrix endpoints. It requires a HS
 1. Run `cargo fuzzcheck <target>`
 1. Wait until it crashes
 1. Verify the error by trying the output json yourself
-1. Report a bug if it is a non security issue or write an email if it might be. Take a look at your synapse logs as well.
+1. Please make sure to follow https://matrix.org/security-disclosure-policy/ for found errors instead of posting them in public unless you are 100% sure they are not a security issue. If you are in doubt prefer the security disclosure policy.
 
 # Hall of Explosions (Bugs found)
 
