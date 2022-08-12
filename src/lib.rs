@@ -3,11 +3,9 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 
-use std::collections::HashMap;
-
-use once_cell::sync::OnceCell;
-
 use crate::types::{Flow, LoginGet, LoginPost};
+use once_cell::sync::OnceCell;
+use std::collections::HashMap;
 
 mod secrets;
 mod types;
@@ -63,7 +61,7 @@ fn login() -> String {
 mod tests {
     use reqwest::header::{HeaderValue, CONTENT_TYPE};
 
-    use crate::types::{CreateRoomMagic, CreateRoomMagicJSON};
+    use crate::types::create_room::{CreateRoomMagic, CreateRoomMagicJSON};
 
     #[test]
     #[no_coverage]
@@ -130,7 +128,7 @@ mod tests {
 
 #[cfg(all(fuzzing, test))]
 mod tests {
-    use crate::types::{CreateRoomMagic, CreateRoomMagicJSON};
+    use crate::types::create_room::{CreateRoomMagic, CreateRoomMagicJSON};
 
     fn create_room(data: &CreateRoomMagic) -> bool {
         // FIXME: We probably should set it to null and not do a false positive
