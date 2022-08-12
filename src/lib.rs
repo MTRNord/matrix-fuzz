@@ -1,5 +1,7 @@
-#![cfg_attr(fuzzing, feature(no_coverage))]
+#![feature(no_coverage)]
+#![feature(type_alias_impl_trait)]
 #![allow(dead_code)]
+#![allow(clippy::too_many_arguments)]
 
 use std::collections::HashMap;
 
@@ -55,6 +57,10 @@ fn login() -> String {
 
 #[cfg(all(test, not(fuzzing)))]
 mod tests {
+    use reqwest::header::{HeaderValue, CONTENT_TYPE};
+
+    use crate::types::CreateRoomMagic;
+
     #[test]
     fn connection_test() {
         let client = crate::client();
@@ -63,39 +69,6 @@ mod tests {
             .send()
             .unwrap();
         assert!(resp.status().is_success());
-    }
-
-    use reqwest::header::{HeaderValue, CONTENT_TYPE};
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Clone, Serialize, Deserialize, Debug, Default)]
-    struct CreateRoomMagic {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        invite: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        invite_3pid: Option<Vec<Invite3pid>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        is_direct: Option<bool>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        name: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        preset: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        room_alias_name: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        room_version: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        topic: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        visibility: Option<String>,
-    }
-
-    #[derive(Clone, Serialize, Deserialize, Debug, Default)]
-    struct Invite3pid {
-        address: String,
-        id_access_token: String,
-        id_server: String,
-        medium: String,
     }
 
     #[test]
@@ -139,39 +112,7 @@ mod tests {
 
 #[cfg(all(fuzzing, test))]
 mod tests {
-    use fuzzcheck::DefaultMutator;
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Clone, DefaultMutator, Serialize, Deserialize, Debug)]
-    struct CreateRoomMagic {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        invite: Option<Vec<String>>,
-        // Due to https://github.com/matrix-org/synapse/issues/13512
-        //#[serde(skip_serializing_if = "Option::is_none")]
-        //invite_3pid: Option<Vec<Invite3pid>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        is_direct: Option<bool>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        name: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        preset: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        room_alias_name: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        room_version: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        topic: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        visibility: Option<String>,
-    }
-
-    #[derive(Clone, DefaultMutator, Serialize, Deserialize, Debug)]
-    struct Invite3pid {
-        address: String,
-        id_access_token: String,
-        id_server: String,
-        medium: String,
-    }
+    use crate::types::{CreateRoomMagic, CreateRoomMagicJSON};
 
     fn create_room(data: &CreateRoomMagic) -> bool {
         // FIXME: We probably should set it to null and not do a false positive
@@ -193,10 +134,11 @@ mod tests {
         // TODO: Login once and reuse the access token
         let access_token = crate::access_token();
         let client = crate::client();
+        let json_data: CreateRoomMagicJSON = data.into();
         let resp = client
             .post("http://localhost:8008/_matrix/client/v3/createRoom")
             .header("Authorization", format!("Bearer {}", access_token))
-            .json(data)
+            .json(&json_data)
             .send();
         if let Ok(resp) = resp {
             let status = resp.status().clone();
@@ -230,13 +172,11 @@ mod tests {
         if !resp.status().is_success() {
             panic!("Failed to connect");
         }
+
         let result = fuzzcheck::fuzz_test(create_room)
             .default_options()
             .stop_after_first_test_failure(true)
             .launch();
-        if result.found_test_failure {
-            println!("{:?}", result.reason_for_stopping);
-        }
         assert!(!result.found_test_failure);
     }
 }
