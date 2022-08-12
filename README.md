@@ -30,3 +30,7 @@ Matrix fuzzing is a dumb fuzzer fuzzing a few matrix endpoints. It requires a HS
 - https://github.com/matrix-org/synapse/issues/13510
 - https://github.com/matrix-org/synapse/issues/13511
 - https://github.com/matrix-org/synapse/issues/13512
+
+# Known bugs in the fuzzer
+
+The fuzzer generates arbitrary json objects currently very poorly. Resulting in a lot less cases than it should. Its a workaround for now until there is a nicer way.

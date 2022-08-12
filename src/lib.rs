@@ -112,7 +112,7 @@ mod tests {
 
 #[cfg(all(fuzzing, test))]
 mod tests {
-    use crate::types::CreateRoomMagic;
+    use crate::types::{CreateRoomMagic, CreateRoomMagicJSON};
 
     fn create_room(data: &CreateRoomMagic) -> bool {
         // FIXME: We probably should set it to null and not do a false positive
@@ -134,10 +134,11 @@ mod tests {
         // TODO: Login once and reuse the access token
         let access_token = crate::access_token();
         let client = crate::client();
+        let json_data: CreateRoomMagicJSON = data.into();
         let resp = client
             .post("http://localhost:8008/_matrix/client/v3/createRoom")
             .header("Authorization", format!("Bearer {}", access_token))
-            .json(data)
+            .json(&json_data)
             .send();
         if let Ok(resp) = resp {
             let status = resp.status().clone();
