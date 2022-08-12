@@ -2,6 +2,10 @@
 
 Matrix fuzzing is a dumb fuzzer fuzzing a few matrix endpoints. It requires a HS and a user to exist.
 
+# Project room
+
+[#matrix-fuzz:midnightthoughts.space](https://matrix.to/#/#matrix-fuzz:midnightthoughts.space)
+
 # Current targets
 
 - `/_matrix/client/v3/createRoom` - `tests::tests::fuzz_create_room`
