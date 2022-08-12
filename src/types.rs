@@ -25,6 +25,8 @@ pub struct CreateRoomMagicJSON {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub creation_content: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_state: Option<Vec<StateEventJSON>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub invite: Option<Vec<String>>,
     // Due to https://github.com/matrix-org/synapse/issues/13512
     //#[serde(skip_serializing_if = "Option::is_none")]
@@ -47,6 +49,7 @@ pub struct CreateRoomMagicJSON {
 
 // FIXME: This is stupid hacky.
 impl From<&CreateRoomMagic> for CreateRoomMagicJSON {
+    #[no_coverage]
     fn from(item: &CreateRoomMagic) -> Self {
         let mut creation_content = HashMap::new();
         if let Some(mut creation_content_keys) = item.creation_content_keys.clone() {
@@ -67,6 +70,10 @@ impl From<&CreateRoomMagic> for CreateRoomMagicJSON {
 
         CreateRoomMagicJSON {
             invite: item.invite.clone(),
+            initial_state: item
+                .initial_state
+                .clone()
+                .map(|initial_state| initial_state.into_iter().map(Into::into).collect()),
             is_direct: item.is_direct,
             name: item.name.clone(),
             preset: item.preset.clone(),
@@ -91,6 +98,8 @@ pub struct CreateRoomMagic {
     pub creation_content_keys: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub creation_content_values: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_state: Option<Vec<StateEvent>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invite: Option<Vec<String>>,
     // Due to https://github.com/matrix-org/synapse/issues/13512
@@ -118,4 +127,52 @@ pub struct Invite3pid {
     pub id_access_token: String,
     pub id_server: String,
     pub medium: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub struct StateEventJSON {
+    pub content: HashMap<String, String>,
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub state_key: String,
+}
+
+// FIXME: This is stupid hacky.
+impl From<StateEvent> for StateEventJSON {
+    #[no_coverage]
+    fn from(item: StateEvent) -> Self {
+        let mut content = HashMap::new();
+        let mut item_clone = item.clone();
+        if item_clone.content_keys.len() > item_clone.content_values.len() {
+            item_clone
+                .content_keys
+                .truncate(item_clone.content_values.len());
+        } else {
+            item_clone
+                .content_values
+                .truncate(item_clone.content_keys.len());
+        }
+        for (key, value) in item_clone
+            .content_keys
+            .iter()
+            .zip(item_clone.content_values.iter())
+        {
+            content.insert(key.to_string(), value.to_string());
+        }
+
+        StateEventJSON {
+            content,
+            _type: item._type.clone(),
+            state_key: item.state_key,
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, DefaultMutator, Default)]
+pub struct StateEvent {
+    pub content_keys: Vec<String>,
+    pub content_values: Vec<String>,
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub state_key: String,
 }

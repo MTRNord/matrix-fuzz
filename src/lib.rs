@@ -12,10 +12,13 @@ use crate::types::{Flow, LoginGet, LoginPost};
 mod secrets;
 mod types;
 
+#[no_coverage]
 fn access_token() -> &'static String {
     static INSTANCE: OnceCell<String> = OnceCell::new();
     INSTANCE.get_or_init(login)
 }
+
+#[no_coverage]
 fn client() -> &'static reqwest::blocking::Client {
     static INSTANCE: OnceCell<reqwest::blocking::Client> = OnceCell::new();
     INSTANCE.get_or_init(|| {
@@ -28,6 +31,7 @@ fn client() -> &'static reqwest::blocking::Client {
     })
 }
 
+#[no_coverage]
 fn login() -> String {
     let client = crate::client();
     let res: LoginGet = client
@@ -59,9 +63,10 @@ fn login() -> String {
 mod tests {
     use reqwest::header::{HeaderValue, CONTENT_TYPE};
 
-    use crate::types::CreateRoomMagic;
+    use crate::types::{CreateRoomMagic, CreateRoomMagicJSON};
 
     #[test]
+    #[no_coverage]
     fn connection_test() {
         let client = crate::client();
         let resp = client
@@ -72,6 +77,7 @@ mod tests {
     }
 
     #[test]
+    #[no_coverage]
     fn null_in_room() {
         let content = CreateRoomMagic {
             name: Some("a".to_string()),
@@ -81,7 +87,6 @@ mod tests {
             topic: Some("c".to_string()),
             ..Default::default()
         };
-        println!("{}", serde_json::to_string(&content).unwrap());
         let access_token = crate::access_token();
         let client = crate::client();
         let resp = client
@@ -96,6 +101,7 @@ mod tests {
     }
 
     #[test]
+    #[no_coverage]
     fn weird_req() {
         let content = std::fs::read_to_string("./weird_ones/af84a60a1b7997b4.json").unwrap();
         let access_token = crate::access_token();
@@ -107,6 +113,18 @@ mod tests {
             .body(content)
             .send();
         assert!(resp.is_err())
+    }
+
+    #[test]
+    #[no_coverage]
+    fn converter() {
+        let content = std::fs::read_to_string(
+            "./fuzz/tests::fuzz_create_room/artifacts/36d21e863bdd02f6.json",
+        )
+        .unwrap();
+        let typed = serde_json::from_str::<CreateRoomMagic>(&content).unwrap();
+        let typed_json: CreateRoomMagicJSON = (&typed).into();
+        println!("{}", serde_json::to_string(&typed_json).unwrap());
     }
 }
 
@@ -120,6 +138,17 @@ mod tests {
         if let Some(room_alias_name) = &data.room_alias_name {
             if room_alias_name.contains("\0") {
                 return true;
+            }
+        }
+        // HACK due to NUL in type or state_key
+        if let Some(initial_state) = &data.initial_state {
+            for state in initial_state {
+                if state._type.contains("\0") {
+                    return true;
+                }
+                if state.state_key.contains("\0") {
+                    return true;
+                }
             }
         }
         /*// HACK due to https://github.com/matrix-org/synapse/issues/13511
@@ -147,9 +176,12 @@ mod tests {
                 let content = resp.text();
                 if let Ok(ref content) = content {
                     if content.contains("M_ROOM_IN_USE")
-                    || content.contains("Invalid characters in room alias")
-                    || content.contains("':' is not permitted in the room alias name. Please note this expects a local part — 'wombat', not '#wombat:example.com'.")
-                    || content.contains("M_UNSUPPORTED_ROOM_VERSION") || content.contains("Invalid user_id") || content.contains("is not a valid preset")
+                        || content.contains("Invalid characters in room alias")
+                        || content.contains("':' is not permitted in the room alias name. Please note this expects a local part — 'wombat', not '#wombat:example.com'.")
+                        || content.contains("M_UNSUPPORTED_ROOM_VERSION") 
+                        || content.contains("Invalid user_id") 
+                        || content.contains("is not a valid preset") 
+                        || content.contains("You are not allowed to set others state")
                 {
                     return true;
                 }
