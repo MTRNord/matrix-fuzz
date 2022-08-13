@@ -134,55 +134,60 @@ mod tests {
     };
 
     fn login(data: &LoginPostReq) -> bool {
-        let mut data = data.clone();
+        let mut json_data = data.clone();
         // We hardcode the type for better fuzzing
-        data._type = "m.login.password".to_string();
-        if data.user.is_some() {
-            data.user = Some(crate::secrets::USERNAME.to_string());
-        }
-        if let Some(identifier) = &mut data.identifier {
-            if identifier.user.is_some() {
-                identifier.user = Some(crate::secrets::USERNAME.to_string());
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "token_auth")] {
+                json_data._type = "com.devture.shared_secret_auth".to_string();
+            } else {
+                json_data._type = "m.login.password".to_string();
             }
+        }
+        if json_data.user.is_some() {
+            json_data.user = Some(crate::secrets::USERNAME.to_string());
+        }
+        if let Some(identifier) = &mut json_data.identifier {
+            identifier.user = crate::secrets::USERNAME.to_string();
+            identifier._type = "m.id.user".to_string();
         }
 
-        if let Some(user) = &data.user {
+        if let Some(user) = &json_data.user {
             if user.contains("\0") {
-                data.user = Some(user.replace("\0", ""));
+                json_data.user = Some(user.replace("\0", ""));
             }
         }
-        if let Some(medium) = &data.medium {
+        if let Some(medium) = &json_data.medium {
             if medium.contains("\0") {
-                data.medium = Some(medium.replace("\0", ""));
+                json_data.medium = Some(medium.replace("\0", ""));
             }
         }
-        if let Some(address) = &data.address {
+        if let Some(address) = &json_data.address {
             if address.contains("\0") {
-                data.address = Some(address.replace("\0", ""));
+                json_data.address = Some(address.replace("\0", ""));
             }
         }
-        if let Some(user) = &data.user {
+        if let Some(user) = &json_data.user {
             if user.contains("\0") {
-                data.user = Some(user.replace("\0", ""));
+                json_data.user = Some(user.replace("\0", ""));
             }
         }
-        if let Some(password) = &data.password {
+        /*if let Some(password) = &json_data.password {
             if password.contains("\0") {
-                data.password = Some(password.replace("\0", ""));
+                json_data.password = Some(password.replace("\0", ""));
             }
-        }
+        }*/
 
         let client = crate::client();
         let resp = client
             .post("http://localhost:8008/_matrix/client/v3/login")
-            .json(&data)
+            .json(&json_data)
             .send();
         if let Ok(resp) = resp {
             let status = resp.status();
             if !status.is_success() {
-                if status == 400 {
+                /*if status == 400 {
                     return true;
-                }
+                }*/
                 let content = resp.text();
                 if let Ok(ref content) = content {
                     if content.contains("Unknown login type")

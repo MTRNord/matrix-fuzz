@@ -34,12 +34,12 @@ pub struct LoginPostReq {
     pub initial_device_display_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub medium: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub password: Option<String>,
+    //#[serde(skip_serializing_if = "Option::is_none")]
+    //pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token: Option<String>,
+    // We assume token login where this is a required field
+    pub token: String,
     #[serde(rename = "type")]
     pub _type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -50,8 +50,8 @@ pub struct LoginPostReq {
 pub struct Identifier {
     #[serde(rename = "type")]
     pub _type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user: Option<String>,
+    // We assume password login or token login where this is a required field
+    pub user: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub medium: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
