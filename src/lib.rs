@@ -137,25 +137,38 @@ mod tests {
         let mut data = data.clone();
         // We hardcode the type for better fuzzing
         data._type = "m.login.password".to_string();
+        if data.user.is_some() {
+            data.user = Some(crate::secrets::USERNAME.to_string());
+        }
+        if let Some(identifier) = &mut data.identifier {
+            if identifier.user.is_some() {
+                identifier.user = Some(crate::secrets::USERNAME.to_string());
+            }
+        }
 
         if let Some(user) = &data.user {
             if user.contains("\0") {
-                data.user = None;
+                data.user = Some(user.replace("\0", ""));
             }
         }
         if let Some(medium) = &data.medium {
             if medium.contains("\0") {
-                data.medium = None;
+                data.medium = Some(medium.replace("\0", ""));
             }
         }
         if let Some(address) = &data.address {
             if address.contains("\0") {
-                data.address = None;
+                data.address = Some(address.replace("\0", ""));
             }
         }
         if let Some(user) = &data.user {
             if user.contains("\0") {
-                data.user = None;
+                data.user = Some(user.replace("\0", ""));
+            }
+        }
+        if let Some(password) = &data.password {
+            if password.contains("\0") {
+                data.password = Some(password.replace("\0", ""));
             }
         }
 
@@ -210,7 +223,7 @@ mod tests {
         // HACK due to https://github.com/matrix-org/synapse/issues/13510
         if let Some(room_alias_name) = &json_data.room_alias_name {
             if room_alias_name.contains('\0') {
-                json_data.room_alias_name = None;
+                json_data.room_alias_name = Some(room_alias_name.replace("\0", ""));
             }
         }
         // HACK due to NUL in type or state_key
