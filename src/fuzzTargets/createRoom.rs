@@ -3,24 +3,28 @@ use matrix_fuzz::{client, secrets::ACCESS_TOKEN, types::create_room::CreateRoomM
 
 fn main() {
     afl::fuzz_nohook!(|data: CreateRoomMagicJSON| {
-        // FIXME: We probably should set it to null and not do a false positive
+        let mut data = data;
         // HACK due to https://github.com/matrix-org/synapse/issues/13510
         if let Some(room_alias_name) = &data.room_alias_name {
             if room_alias_name.contains('\0') {
-                return;
+                data.room_alias_name = None;
             }
         }
+
         // HACK due to NUL in type or state_key
-        if let Some(initial_state) = &data.initial_state {
-            for state in initial_state {
-                if state._type.contains('\0') {
-                    return;
-                }
-                if state.state_key.contains('\0') {
-                    return;
-                }
-            }
+        if let Some(initial_state) = &mut data.initial_state {
+            initial_state
+                .retain(|state| !(state._type.contains('\0') || state.state_key.contains('\0')));
+            // for state in initial_state {
+            //     if state._type.contains('\0') {
+            //         return;
+            //     }
+            //     if state.state_key.contains('\0') {
+            //         return;
+            //     }
+            // }
         }
+
         /*// HACK due to https://github.com/matrix-org/synapse/issues/13511
         if let Some(pids) = &data.invite_3pid {
             for pid in pids {

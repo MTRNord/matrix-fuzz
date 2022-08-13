@@ -128,27 +128,105 @@ mod tests {
 
 #[cfg(all(fuzzing, test))]
 mod tests {
-    use crate::types::create_room::{CreateRoomMagic, CreateRoomMagicJSON};
+    use crate::types::{
+        create_room::{CreateRoomMagic, CreateRoomMagicJSON},
+        LoginPostReq,
+    };
+
+    fn login(data: &LoginPostReq) -> bool {
+        let mut data = data.clone();
+        // We hardcode the type for better fuzzing
+        data._type = "m.login.password".to_string();
+
+        if let Some(user) = &data.user {
+            if user.contains("\0") {
+                data.user = None;
+            }
+        }
+        if let Some(medium) = &data.medium {
+            if medium.contains("\0") {
+                data.medium = None;
+            }
+        }
+        if let Some(address) = &data.address {
+            if address.contains("\0") {
+                data.address = None;
+            }
+        }
+        if let Some(user) = &data.user {
+            if user.contains("\0") {
+                data.user = None;
+            }
+        }
+
+        let client = crate::client();
+        let resp = client
+            .post("http://localhost:8008/_matrix/client/v3/login")
+            .json(&data)
+            .send();
+        if let Ok(resp) = resp {
+            let status = resp.status();
+            if !status.is_success() {
+                if status == 400 {
+                    return true;
+                }
+                let content = resp.text();
+                if let Ok(ref content) = content {
+                    if content.contains("Unknown login type")
+                        || content.contains("Invalid login submission")
+                        || content.contains("Invalid username or password")
+                    {
+                        return true;
+                    }
+                }
+                println!("Status: {:?}", status);
+                println!("Content: {:?}", content);
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn fuzz_login() {
+        let client = crate::client();
+        let resp = client
+            .get("http://localhost:8008/_matrix/key/v2/server")
+            .send()
+            .unwrap();
+        if !resp.status().is_success() {
+            panic!("Failed to connect");
+        }
+
+        let result = fuzzcheck::fuzz_test(login)
+            .default_options()
+            .stop_after_first_test_failure(true)
+            .launch();
+        assert!(!result.found_test_failure);
+    }
 
     fn create_room(data: &CreateRoomMagic) -> bool {
+        let mut json_data: CreateRoomMagicJSON = data.into();
         // FIXME: We probably should set it to null and not do a false positive
         // HACK due to https://github.com/matrix-org/synapse/issues/13510
-        if let Some(room_alias_name) = &data.room_alias_name {
+        if let Some(room_alias_name) = &json_data.room_alias_name {
             if room_alias_name.contains('\0') {
-                return true;
+                json_data.room_alias_name = None;
             }
         }
         // HACK due to NUL in type or state_key
-        if let Some(initial_state) = &data.initial_state {
-            for state in initial_state {
-                if state._type.contains('\0') {
-                    return true;
-                }
-                if state.state_key.contains('\0') {
-                    return true;
-                }
-            }
+        if let Some(initial_state) = &mut json_data.initial_state {
+            initial_state
+                .retain(|state| !(state._type.contains('\0') || state.state_key.contains('\0')));
+            // for state in initial_state {
+            //     if state._type.contains('\0') {
+            //         return;
+            //     }
+            //     if state.state_key.contains('\0') {
+            //         return;
+            //     }
+            // }
         }
+
         /*// HACK due to https://github.com/matrix-org/synapse/issues/13511
         if let Some(pids) = &data.invite_3pid {
             for pid in pids {
@@ -161,7 +239,6 @@ mod tests {
         // TODO: Login once and reuse the access token
         let access_token = crate::access_token();
         let client = crate::client();
-        let json_data: CreateRoomMagicJSON = data.into();
         let resp = client
             .post("http://localhost:8008/_matrix/client/v3/createRoom")
             .header("Authorization", format!("Bearer {}", access_token))
@@ -180,9 +257,9 @@ mod tests {
                         || content.contains("Invalid user_id") 
                         || content.contains("is not a valid preset") 
                         || content.contains("You are not allowed to set others state")
-                {
-                    return true;
-                }
+                    {
+                        return true;
+                    }
                 }
                 println!("Content: {:?}", content);
 
