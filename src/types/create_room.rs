@@ -15,6 +15,18 @@ fn creation_content_skip(value: &Value) -> bool {
         || value.is_u64()
 }
 
+fn room_version_skip(value: &Option<String>) -> bool {
+    if value.is_none() {
+        return true;
+    }
+    if let Some(ref value) = value {
+        if value.is_empty() {
+            return true;
+        }
+    }
+    false
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, Default, DefaultMutator)]
 pub struct CreateRoomMagicJSON {
     #[serde(skip_serializing_if = "creation_content_skip")]
@@ -34,10 +46,12 @@ pub struct CreateRoomMagicJSON {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preset: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub room_alias_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub room_version: Option<String>,
+    // Disabled to have more fuzz results
+    //#[serde(skip_serializing_if = "Option::is_none")]
+    //pub room_alias_name: Option<String>,
+    // Disabled to have more fuzz results
+    //#[serde(skip_serializing_if = "room_version_skip")]
+    //pub room_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topic: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -79,7 +79,7 @@ mod tests {
     fn null_in_room() {
         let content = CreateRoomMagicJSON {
             name: Some("a".to_string()),
-            room_alias_name: Some("\0".to_string()),
+            //room_alias_name: Some("\0".to_string()),
             visibility: Some("a".to_string()),
             is_direct: Some(false),
             topic: Some("c".to_string()),
@@ -219,13 +219,12 @@ mod tests {
             }
         }
 
-        // FIXME: We probably should set it to null and not do a false positive
         // HACK due to https://github.com/matrix-org/synapse/issues/13510
-        if let Some(room_alias_name) = &json_data.room_alias_name {
+        /*if let Some(room_alias_name) = &json_data.room_alias_name {
             if room_alias_name.contains('\0') {
                 json_data.room_alias_name = Some(room_alias_name.replace('\0', ""));
             }
-        }
+        }*/
         // HACK due to NUL in type or state_key
         json_data
             .initial_state
