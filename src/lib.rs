@@ -61,7 +61,7 @@ fn login() -> String {
 mod tests {
     use reqwest::header::{HeaderValue, CONTENT_TYPE};
 
-    use crate::types::create_room::{CreateRoomMagic, CreateRoomMagicJSON};
+    use crate::types::create_room::CreateRoomMagicJSON;
 
     #[test]
     #[no_coverage]
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     #[no_coverage]
     fn null_in_room() {
-        let content = CreateRoomMagic {
+        let content = CreateRoomMagicJSON {
             name: Some("a".to_string()),
             room_alias_name: Some("\0".to_string()),
             visibility: Some("a".to_string()),
@@ -112,26 +112,11 @@ mod tests {
             .send();
         assert!(resp.is_err())
     }
-
-    #[test]
-    #[no_coverage]
-    fn converter() {
-        let content = std::fs::read_to_string(
-            "./fuzz/tests::fuzz_create_room/artifacts/36d21e863bdd02f6.json",
-        )
-        .unwrap();
-        let typed = serde_json::from_str::<CreateRoomMagic>(&content).unwrap();
-        let typed_json: CreateRoomMagicJSON = (&typed).into();
-        println!("{}", serde_json::to_string(&typed_json).unwrap());
-    }
 }
 
 #[cfg(all(fuzzing, test))]
 mod tests {
-    use crate::types::{
-        create_room::{CreateRoomMagic, CreateRoomMagicJSON},
-        LoginPostReq,
-    };
+    use crate::types::{create_room::CreateRoomMagicJSON, LoginPostReq};
 
     fn login(data: &LoginPostReq) -> bool {
         let mut json_data = data.clone();
@@ -152,28 +137,28 @@ mod tests {
         }
 
         if let Some(user) = &json_data.user {
-            if user.contains("\0") {
-                json_data.user = Some(user.replace("\0", ""));
+            if user.contains('\0') {
+                json_data.user = Some(user.replace('\0', ""));
             }
         }
         if let Some(medium) = &json_data.medium {
-            if medium.contains("\0") {
-                json_data.medium = Some(medium.replace("\0", ""));
+            if medium.contains('\0') {
+                json_data.medium = Some(medium.replace('\0', ""));
             }
         }
         if let Some(address) = &json_data.address {
-            if address.contains("\0") {
-                json_data.address = Some(address.replace("\0", ""));
+            if address.contains('\0') {
+                json_data.address = Some(address.replace('\0', ""));
             }
         }
         if let Some(user) = &json_data.user {
-            if user.contains("\0") {
-                json_data.user = Some(user.replace("\0", ""));
+            if user.contains('\0') {
+                json_data.user = Some(user.replace('\0', ""));
             }
         }
         /*if let Some(password) = &json_data.password {
-            if password.contains("\0") {
-                json_data.password = Some(password.replace("\0", ""));
+            if password.contains('\0' {
+                json_data.password = Some(password.replace('\0', ""));
             }
         }*/
 
@@ -222,28 +207,29 @@ mod tests {
         assert!(!result.found_test_failure);
     }
 
-    fn create_room(data: &CreateRoomMagic) -> bool {
-        let mut json_data: CreateRoomMagicJSON = data.into();
+    fn create_room(data: &CreateRoomMagicJSON) -> bool {
+        let mut json_data = data.clone();
+        for mut state in &mut json_data.initial_state {
+            if state.content.is_array()
+                || state.content.is_boolean()
+                || state.content.is_null()
+                || state.content.is_string()
+            {
+                state.content = serde_json::Value::Object(serde_json::Map::new());
+            }
+        }
+
         // FIXME: We probably should set it to null and not do a false positive
         // HACK due to https://github.com/matrix-org/synapse/issues/13510
         if let Some(room_alias_name) = &json_data.room_alias_name {
             if room_alias_name.contains('\0') {
-                json_data.room_alias_name = Some(room_alias_name.replace("\0", ""));
+                json_data.room_alias_name = Some(room_alias_name.replace('\0', ""));
             }
         }
         // HACK due to NUL in type or state_key
-        if let Some(initial_state) = &mut json_data.initial_state {
-            initial_state
-                .retain(|state| !(state._type.contains('\0') || state.state_key.contains('\0')));
-            // for state in initial_state {
-            //     if state._type.contains('\0') {
-            //         return;
-            //     }
-            //     if state.state_key.contains('\0') {
-            //         return;
-            //     }
-            // }
-        }
+        json_data
+            .initial_state
+            .retain(|state| !(state._type.contains('\0') || state.state_key.contains('\0')));
 
         /*// HACK due to https://github.com/matrix-org/synapse/issues/13511
         if let Some(pids) = &data.invite_3pid {
@@ -274,7 +260,8 @@ mod tests {
                         || content.contains("M_UNSUPPORTED_ROOM_VERSION") 
                         || content.contains("Invalid user_id") 
                         || content.contains("is not a valid preset") 
-                        || content.contains("You are not allowed to set others state")
+                        || content.contains("You are not allowed to set others state") 
+                        || content.contains("JSON integer out of range")
                     {
                         return true;
                     }

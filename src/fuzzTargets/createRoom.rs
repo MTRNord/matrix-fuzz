@@ -1,7 +1,8 @@
 #![allow(non_snake_case)]
-use matrix_fuzz::{client, secrets::ACCESS_TOKEN, types::create_room::CreateRoomMagicJSON};
+//use matrix_fuzz::{client, secrets::ACCESS_TOKEN, types::create_room::CreateRoomMagicJSON};
 
 fn main() {
+    /*
     afl::fuzz_nohook!(|data: CreateRoomMagicJSON| {
         let mut data = data;
         // HACK due to https://github.com/matrix-org/synapse/issues/13510
@@ -51,9 +52,9 @@ fn main() {
                     if content.contains("M_ROOM_IN_USE")
                         || content.contains("Invalid characters in room alias")
                         || content.contains("':' is not permitted in the room alias name. Please note this expects a local part — 'wombat', not '#wombat:example.com'.")
-                        || content.contains("M_UNSUPPORTED_ROOM_VERSION") 
-                        || content.contains("Invalid user_id") 
-                        || content.contains("is not a valid preset") 
+                        || content.contains("M_UNSUPPORTED_ROOM_VERSION")
+                        || content.contains("Invalid user_id")
+                        || content.contains("is not a valid preset")
                         || content.contains("You are not allowed to set others state")
                     {
                         return;
@@ -63,5 +64,5 @@ fn main() {
                 panic!("Content: {:?}", content);
             }
         }
-    });
+    });*/
 }
