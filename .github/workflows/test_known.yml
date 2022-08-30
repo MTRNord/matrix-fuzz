@@ -12,6 +12,7 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     container: rustlang/rust:nightly-slim
 
     services:
@@ -36,7 +37,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       synapse:
-        image: ghcr.io/MTRNord/synapse:latest
+        image: ghcr.io/mtrnord/matrix-fuzz:synapse
         # Set health checks to wait until redis has started
         options: >-
           --health-interval 10s
