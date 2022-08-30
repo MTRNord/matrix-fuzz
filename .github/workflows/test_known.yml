@@ -23,7 +23,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: synapse
-          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C --template=template0"
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
