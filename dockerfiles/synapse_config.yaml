@@ -40,7 +40,6 @@ listeners:
         compress: false
 
 ## Files ##
-
 media_store_path: "/synapse/data/media"
 uploads_path: "/synapse/data/uploads"
 
@@ -86,7 +85,6 @@ trusted_key_servers:
 enable_media_repo: false
 federation_domain_whitelist: []
 federation_rr_transactions_per_room_per_second: 1000000000000
-federation_verify_certificates: false
 rc_3pid_validation:
   burst_count: 150000000000
   per_second: 1000000000000
