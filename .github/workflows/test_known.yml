@@ -57,6 +57,7 @@ jobs:
         env:
           NONCE: ${{ steps.get_nonce.outputs.nonce }}
       - name: Login
+        uses: docker://python:3
         run: 'curl -X POST http://localhost:8008/_synapse/admin/v1/login -d ''{"mac": "${MAC}", "nonce": "${NONCE}", "username": "fuzzer", "password": "Chu8chool0dooqueiwo0lohviegho6ieveuNg3Ohcio2aekaiw0ioF6waifo8eep"}'''
         env:
           MAC: ${{ steps.generate_mac.outputs.hmac }}
