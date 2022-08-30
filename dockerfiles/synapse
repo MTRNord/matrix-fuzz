@@ -1,5 +1,5 @@
 ARG version
-FROM matrix/synapse:${version}
+FROM matrixdotorg/synapse:${version}
 
 COPY ./synapse_config.yaml /synapse/config/homeserver.yaml
 COPY ./synapse_log.yaml /synapse/config/log.yaml
