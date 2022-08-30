@@ -51,13 +51,17 @@ jobs:
       - name: Login get_nonce
         id: get_nonce
         run: echo "::set-output nonce=$(curl http://localhost:8008/_synapse/admin/v1/register | jq -r .nonce)"
+      - name: Install python3
+        run: |
+          apt-get update
+          apt-get install -y python3
+          apt-get clean
       - name: Generate mac
         id: generate_mac
         run: python3 ./dockerfiles/synapse_generate_login.py
         env:
           NONCE: ${{ steps.get_nonce.outputs.nonce }}
       - name: Login
-        uses: docker://python:3
         run: 'curl -X POST http://localhost:8008/_synapse/admin/v1/login -d ''{"mac": "${MAC}", "nonce": "${NONCE}", "username": "fuzzer", "password": "Chu8chool0dooqueiwo0lohviegho6ieveuNg3Ohcio2aekaiw0ioF6waifo8eep"}'''
         env:
           MAC: ${{ steps.generate_mac.outputs.hmac }}
