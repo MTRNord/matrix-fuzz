@@ -41,6 +41,8 @@ jobs:
         # Set health checks to wait until synapse has started
         options: >-
           --health-retries 50
+          --health-interval 30s
+          --health-timeout 30s
 
     steps:
       - uses: actions/checkout@v3
