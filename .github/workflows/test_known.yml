@@ -48,14 +48,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Install deps
+        run: |
+          apt-get update
+          apt-get install -y python3 jq curl
+          apt-get clean
       - name: Login get_nonce
         id: get_nonce
         run: echo "::set-output nonce=$(curl http://localhost:8008/_synapse/admin/v1/register | jq -r .nonce)"
-      - name: Install python3
-        run: |
-          apt-get update
-          apt-get install -y python3
-          apt-get clean
       - name: Generate mac
         id: generate_mac
         run: python3 ./dockerfiles/synapse_generate_login.py

@@ -5,7 +5,7 @@ import os
 
 def generate_mac(nonce, user, password, admin=False, user_type=None):
     mac = hmac.new(
-        key="sahZae3yahjaequ8boh2cae5uo5eiciede2hoa9eew8mai1oy4iiChietheequ9U",
+        key=b"sahZae3yahjaequ8boh2cae5uo5eiciede2hoa9eew8mai1oy4iiChietheequ9U",
         digestmod=hashlib.sha1,
     )
 
