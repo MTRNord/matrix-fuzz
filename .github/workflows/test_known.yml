@@ -45,6 +45,8 @@ jobs:
           --health-retries 50
           --health-interval 30s
           --health-timeout 30s
+        ports:
+          - 8008:8008
 
     steps:
       - uses: actions/checkout@v3
@@ -53,15 +55,15 @@ jobs:
           apt-get update
           apt-get install -y python3 jq curl
           apt-get clean
-      - name: Login get_nonce
+      - name: Register get_nonce
         id: get_nonce
         run: echo "::set-output nonce=$(curl http://localhost:8008/_synapse/admin/v1/register | jq -r .nonce)"
       - name: Generate mac
         id: generate_mac
-        run: python3 ./dockerfiles/synapse_generate_login.py
+        run: python3 ./dockerfiles/synapse_generate_mac.py
         env:
           NONCE: ${{ steps.get_nonce.outputs.nonce }}
-      - name: Login
+      - name: Register
         run: 'curl -X POST http://localhost:8008/_synapse/admin/v1/register -d ''{"mac": "${MAC}", "nonce": "${NONCE}", "username": "fuzzer", "password": "Chu8chool0dooqueiwo0lohviegho6ieveuNg3Ohcio2aekaiw0ioF6waifo8eep"}'''
         env:
           MAC: ${{ steps.generate_mac.outputs.hmac }}
