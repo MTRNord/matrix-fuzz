@@ -5,9 +5,8 @@
 
 use crate::types::{Flow, LoginGet, LoginPost};
 use once_cell::sync::OnceCell;
-use std::collections::HashMap;
+use std::{collections::HashMap, env};
 
-pub mod secrets;
 pub mod types;
 
 #[no_coverage]
@@ -31,6 +30,14 @@ pub fn client() -> &'static reqwest::blocking::Client {
 
 #[no_coverage]
 fn login() -> String {
+    let username = match env::var("MATRIX_USERNAME") {
+        Ok(v) => v,
+        Err(e) => panic!("$MATRIX_USERNAME is not set ({})", e),
+    };
+    let password = match env::var("MATRIX_PASSWORD") {
+        Ok(v) => v,
+        Err(e) => panic!("$MATRIX_PASSWORD is not set ({})", e),
+    };
     let client = crate::client();
     let res: LoginGet = client
         .get("http://localhost:8008/_matrix/client/v3/login")
@@ -44,8 +51,8 @@ fn login() -> String {
 
     let mut map = HashMap::new();
     map.insert("type", "m.login.password");
-    map.insert("user", secrets::USERNAME);
-    map.insert("password", secrets::PASSWORD);
+    map.insert("user", &username);
+    map.insert("password", &password);
     let res: LoginPost = client
         .post("http://localhost:8008/_matrix/client/v3/login")
         .json(&map)
@@ -228,11 +235,17 @@ mod tests {
                 json_data._type = "m.login.password".to_string();
             }
         }
+
+        let username = match env::var("MATRIX_USERNAME") {
+            Ok(v) => v,
+            Err(e) => panic!("$MATRIX_USERNAME is not set ({})", e),
+        };
+
         if json_data.user.is_some() {
-            json_data.user = Some(crate::secrets::USERNAME.to_string());
+            json_data.user = Some(username);
         }
         if let Some(identifier) = &mut json_data.identifier {
-            identifier.user = crate::secrets::USERNAME.to_string();
+            identifier.user = username;
             identifier._type = "m.id.user".to_string();
         }
 

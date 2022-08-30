@@ -1,0 +1,8 @@
+ARG version
+FROM matrix/synapse:${version}
+
+COPY ./synapse_config.yaml /synapse/config/homeserver.yaml
+COPY ./synapse_log.yaml /synapse/config/log.yaml
+COPY ./synapse_signing.key /synapse/keys/signing.key
+
+CMD "exec python -B -m synapse.app.homeserver -c /synapse/config/homeserver.yaml"

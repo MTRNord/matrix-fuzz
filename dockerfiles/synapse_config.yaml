@@ -1,0 +1,143 @@
+## Server ##
+
+server_name: "localhost"
+public_baseurl: "http://localhost:8008"
+pid_file: /homeserver.pid
+web_client: False
+soft_file_limit: 0
+log_config: "/synapse/config/log.yaml"
+report_stats: false
+
+## Ports ##
+
+listeners:
+  - port: 8008
+    tls: false
+    bind_addresses: ["::"]
+    type: http
+    x_forwarded: true
+
+    resources:
+      - names: [client, federation]
+        compress: false
+
+  - port: 9090
+    tls: false
+    bind_addresses: ["::"]
+    type: http
+
+    resources:
+      - names: [metrics]
+        compress: false
+
+  - port: 9093
+    tls: false
+    bind_addresses: ["::"]
+    type: http
+
+    resources:
+      - names: [replication]
+        compress: false
+
+## Files ##
+
+media_store_path: "/synapse/data/media"
+uploads_path: "/synapse/data/uploads"
+
+## Registration ##
+registration_shared_secret: "sahZae3yahjaequ8boh2cae5uo5eiciede2hoa9eew8mai1oy4iiChietheequ9U"
+enable_registration: false
+
+## API Configuration ##
+
+## Database configuration ##
+database:
+  name: "psycopg2"
+  args:
+    user: "postgres"
+    password: "postgres"
+    sslmode: "prefer"
+    database: "synapse"
+    port: 5432
+    cp_min: 5
+    cp_max: 10
+    host: "postgres"
+
+## Redis configuration ##
+redis:
+  enabled: true
+  host: "redis"
+  port: 6379
+
+## Metrics ###
+
+enable_metrics: true
+
+## Signing Keys ##
+
+signing_key_path: "/synapse/keys/signing.key"
+
+# The trusted servers to download signing keys from.
+trusted_key_servers:
+  - server_name: matrix.org
+
+## Extra config ##
+
+enable_media_repo: false
+federation_domain_whitelist: []
+federation_rr_transactions_per_room_per_second: 1000000000000
+federation_verify_certificates: false
+rc_3pid_validation:
+  burst_count: 150000000000
+  per_second: 1000000000000
+rc_admin_redaction:
+  burst_count: 150000000000
+  per_second: 1000000000000
+rc_federation:
+  concurrent: 3
+  reject_limit: 1000000000000
+  sleep_delay: 500
+  sleep_limit: 10
+  window_size: 1000
+rc_invites:
+  per_issuer:
+    burst_count: 150000000000
+    per_second: 1000000000000
+  per_room:
+    burst_count: 150000000000
+    per_second: 1000000000000
+  per_user:
+    burst_count: 150000000000
+    per_second: 1000000000000
+rc_joins:
+  local:
+    burst_count: 150000000000
+    per_second: 1000000000000
+  remote:
+    burst_count: 150000000000
+    per_second: 1000000000000
+rc_joins_per_room:
+  burst_count: 150000000000
+  per_second: 1000000000000
+rc_login:
+  account:
+    burst_count: 150000000000
+    per_second: 1000000000000
+  address:
+    burst_count: 150000000000
+    per_second: 1000000000000
+  failed_attempts:
+    burst_count: 150000000000
+    per_second: 1000000000000
+rc_message:
+  burst_count: 150000000000
+  per_second: 1000000000000
+rc_registration:
+  burst_count: 150000000000
+  per_second: 1000000000000
+rc_registration_token_validity:
+  burst_count: 150000000000
+  per_second: 1000000000000
+rc_third_party_invite:
+  burst_count: 150000000000
+  per_second: 1000000000000
