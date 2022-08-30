@@ -25,4 +25,4 @@ def generate_mac(nonce, user, password, admin=False, user_type=None):
 
 hmac = generate_mac(os.environ['NONCE'], "fuzzer",
                     "Chu8chool0dooqueiwo0lohviegho6ieveuNg3Ohcio2aekaiw0ioF6waifo8eep")
-print(f"::set-output hmac={hmac}")
+print(f"::set-output name=hmac::{hmac}")

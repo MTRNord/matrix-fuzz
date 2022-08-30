@@ -55,7 +55,7 @@ jobs:
           apt-get clean
       - name: Register get_nonce
         id: get_nonce
-        run: echo "::set-output nonce=$(curl http://synapse:8008/_synapse/admin/v1/register | jq -r .nonce)"
+        run: echo "::set-output name=nonce::$(curl http://synapse:8008/_synapse/admin/v1/register | jq -r .nonce)"
       - name: Generate mac
         id: generate_mac
         run: python3 ./dockerfiles/synapse_generate_mac.py
