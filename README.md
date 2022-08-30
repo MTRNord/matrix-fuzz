@@ -54,6 +54,7 @@ Matrix fuzzing is a dumb fuzzer fuzzing a few matrix endpoints. It requires a HS
 - https://github.com/matrix-org/synapse/issues/13510
 - https://github.com/matrix-org/synapse/issues/13511
 - https://github.com/matrix-org/synapse/issues/13512
+- https://github.com/matrix-org/synapse/issues/13664
 
 # Known bugs in the fuzzer
 

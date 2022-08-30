@@ -59,7 +59,10 @@ fn login() -> String {
 
 #[cfg(all(test, not(fuzzing)))]
 mod tests {
+    use std::time::Instant;
+
     use reqwest::header::{HeaderValue, CONTENT_TYPE};
+    use serde_json::json;
 
     use crate::types::create_room::CreateRoomMagicJSON;
 
@@ -96,6 +99,103 @@ mod tests {
 
         assert!(!resp.status().is_success());
         assert!(resp.text().unwrap().contains("Internal server error"));
+    }
+
+    #[test]
+    #[no_coverage]
+    fn sql_injection_test() {
+        let content = CreateRoomMagicJSON {
+            name: Some("beep; pg_sleep(50);--".to_string()),
+            initial_state: vec![
+                crate::types::create_room::StateEventJSON {
+                    _type: "m.room.member".to_string(),
+                    state_key: "@fuzzer:localhost".to_string(),
+                    content: json!({
+                      "membership": "join",
+                      "displayname": "beep\0' pg_sleep(50);--"
+                    }),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep; pg_sleep(50);--".to_string(),
+                    state_key: "beep; pg_sleep(50);--".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep%00; pg_sleep(50);--".to_string(),
+                    state_key: "beep%00; pg_sleep(50);--".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep\0; pg_sleep(50);--".to_string(),
+                    state_key: "beep\0; pg_sleep(50);--".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep; pg_sleep(50);".to_string(),
+                    state_key: "beep; pg_sleep(50);".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep%00; pg_sleep(50);".to_string(),
+                    state_key: "beep%00; pg_sleep(50);".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep\0; pg_sleep(50);".to_string(),
+                    state_key: "beep\0; pg_sleep(50);".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep' pg_sleep(50);".to_string(),
+                    state_key: "beep' pg_sleep(50);".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep%00' pg_sleep(50);".to_string(),
+                    state_key: "beep%00' pg_sleep(50);".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep\0' pg_sleep(50);".to_string(),
+                    state_key: "beep\0' pg_sleep(50);".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep' pg_sleep(50);--".to_string(),
+                    state_key: "beep' pg_sleep(50);--".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep%00' pg_sleep(50);--".to_string(),
+                    state_key: "beep%00' pg_sleep(50);--".to_string(),
+                    content: json!({}),
+                },
+                crate::types::create_room::StateEventJSON {
+                    _type: "beep\0' pg_sleep(50);--".to_string(),
+                    state_key: "beep\0' pg_sleep(50);--".to_string(),
+                    content: json!({}),
+                },
+            ],
+            ..Default::default()
+        };
+        let access_token = crate::access_token();
+        let client = crate::client();
+        let start = Instant::now();
+        let resp = client
+            .post("http://localhost:8008/_matrix/client/v3/createRoom")
+            .header("Authorization", format!("Bearer {}", access_token))
+            .json(&content)
+            .send()
+            .unwrap();
+        let duration = start.elapsed();
+        println!("Time elapsed in request is: {:?}", duration);
+        println!("{:?}", resp);
+        let status = resp.status();
+        let text = resp.text().unwrap();
+        println!("{}", text);
+
+        assert!(!status.is_success());
+        assert!(text.contains("Internal server error"));
     }
 
     #[test]
@@ -214,6 +314,7 @@ mod tests {
                 || state.content.is_boolean()
                 || state.content.is_null()
                 || state.content.is_string()
+                || state.content.is_u64()
             {
                 state.content = serde_json::Value::Object(serde_json::Map::new());
             }
@@ -226,9 +327,10 @@ mod tests {
             }
         }*/
         // HACK due to NUL in type or state_key
-        json_data
-            .initial_state
-            .retain(|state| !(state._type.contains('\0') || state.state_key.contains('\0')));
+        for state in json_data.initial_state.iter_mut() {
+            state._type = state._type.replace('\0', "");
+            state.state_key = state.state_key.replace('\0', "");
+        }
 
         /*// HACK due to https://github.com/matrix-org/synapse/issues/13511
         if let Some(pids) = &data.invite_3pid {
@@ -256,11 +358,12 @@ mod tests {
                     if content.contains("M_ROOM_IN_USE")
                         || content.contains("Invalid characters in room alias")
                         || content.contains("':' is not permitted in the room alias name. Please note this expects a local part — 'wombat', not '#wombat:example.com'.")
-                        || content.contains("M_UNSUPPORTED_ROOM_VERSION") 
-                        || content.contains("Invalid user_id") 
-                        || content.contains("is not a valid preset") 
-                        || content.contains("You are not allowed to set others state") 
+                        || content.contains("M_UNSUPPORTED_ROOM_VERSION")
+                        || content.contains("Invalid user_id")
+                        || content.contains("is not a valid preset")
+                        || content.contains("You are not allowed to set others state")
                         || content.contains("JSON integer out of range")
+                        || content.contains(" too large")
                     {
                         return true;
                     }
