@@ -32,7 +32,7 @@ pub fn client() -> &'static reqwest::blocking::Client {
 fn login() -> String {
     let server = match env::var("MATRIX_SERVER") {
         Ok(v) => v,
-        Err(e) => "http://localhost:8008".to_string(),
+        Err(_) => "http://localhost:8008".to_string(),
     };
     let username = match env::var("MATRIX_USERNAME") {
         Ok(v) => v,
@@ -82,7 +82,7 @@ mod tests {
     fn connection_test() {
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let client = crate::client();
         let resp = client
@@ -107,7 +107,7 @@ mod tests {
         let client = crate::client();
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let resp = client
             .post(format!("{}/_matrix/client/v3/createRoom", server))
@@ -202,7 +202,7 @@ mod tests {
         let start = Instant::now();
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let resp = client
             .post(format!("{}/_matrix/client/v3/createRoom", server))
@@ -229,7 +229,7 @@ mod tests {
         let client = crate::client();
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let resp = client
             .post(format!("{}/_matrix/client/v3/createRoom", server))
@@ -244,6 +244,7 @@ mod tests {
 #[cfg(all(fuzzing, test))]
 mod tests {
     use crate::types::{create_room::CreateRoomMagicJSON, LoginPostReq};
+    use std::env;
 
     fn login(data: &LoginPostReq) -> bool {
         let mut json_data = data.clone();
@@ -262,7 +263,7 @@ mod tests {
         };
 
         if json_data.user.is_some() {
-            json_data.user = Some(username);
+            json_data.user = Some(username.clone());
         }
         if let Some(identifier) = &mut json_data.identifier {
             identifier.user = username;
@@ -298,7 +299,7 @@ mod tests {
         let client = crate::client();
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let resp = client
             .post(format!("{}/_matrix/client/v3/login", server))
@@ -331,7 +332,7 @@ mod tests {
         let client = crate::client();
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let resp = client
             .get(format!("{}/_matrix/key/v2/server", server))
@@ -387,7 +388,7 @@ mod tests {
         let client = crate::client();
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let resp = client
             .post(format!("{}/_matrix/client/v3/createRoom", server))
@@ -426,7 +427,7 @@ mod tests {
         let client = crate::client();
         let server = match env::var("MATRIX_SERVER") {
             Ok(v) => v,
-            Err(e) => "http://localhost:8008".to_string(),
+            Err(_) => "http://localhost:8008".to_string(),
         };
         let resp = client
             .get(format!("{}/_matrix/key/v2/server", server))

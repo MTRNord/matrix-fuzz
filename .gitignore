@@ -1,5 +1,4 @@
 /target
-/Cargo.lock
 notes.md
 src/secrets.rs
 /fuzz
