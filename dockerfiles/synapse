@@ -1,8 +1,6 @@
 ARG version
 FROM matrixdotorg/synapse:${version}
 
-COPY ./synapse_config.yaml /synapse/config/homeserver.yaml
-COPY ./synapse_log.yaml /synapse/config/log.yaml
-COPY ./synapse_signing.key /synapse/keys/signing.key
-
-CMD "python -B -m synapse.app.homeserver -c /synapse/config/homeserver.yaml"
+COPY ./synapse_config.yaml /data/homeserver.yaml
+COPY ./synapse_log.yaml /data/log.yaml
+COPY ./synapse_signing.key /data/signing.key
