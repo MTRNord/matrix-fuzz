@@ -1,0 +1,10 @@
+FROM rustlang/rust:nightly-slim
+
+RUN mkdir -p /src
+WORKDIR /src
+COPY . .
+
+RUN cargo install cargo-fuzzcheck
+RUN rustup override set nightly
+
+CMD "cargo fuzzcheck tests::fuzz_login"
