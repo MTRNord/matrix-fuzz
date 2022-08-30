@@ -30,6 +30,10 @@ pub fn client() -> &'static reqwest::blocking::Client {
 
 #[no_coverage]
 fn login() -> String {
+    let server = match env::var("MATRIX_SERVER") {
+        Ok(v) => v,
+        Err(e) => "http://localhost:8008".to_string(),
+    };
     let username = match env::var("MATRIX_USERNAME") {
         Ok(v) => v,
         Err(e) => panic!("$MATRIX_USERNAME is not set ({})", e),
@@ -40,7 +44,7 @@ fn login() -> String {
     };
     let client = crate::client();
     let res: LoginGet = client
-        .get("http://localhost:8008/_matrix/client/v3/login")
+        .get(format!("{}/_matrix/client/v3/login", server))
         .send()
         .unwrap()
         .json()
@@ -54,7 +58,7 @@ fn login() -> String {
     map.insert("user", &username);
     map.insert("password", &password);
     let res: LoginPost = client
-        .post("http://localhost:8008/_matrix/client/v3/login")
+        .post(format!("{}/_matrix/client/v3/login", server))
         .json(&map)
         .send()
         .unwrap()
@@ -66,7 +70,7 @@ fn login() -> String {
 
 #[cfg(all(test, not(fuzzing)))]
 mod tests {
-    use std::time::Instant;
+    use std::{env, time::Instant};
 
     use reqwest::header::{HeaderValue, CONTENT_TYPE};
     use serde_json::json;
@@ -76,9 +80,13 @@ mod tests {
     #[test]
     #[no_coverage]
     fn connection_test() {
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let client = crate::client();
         let resp = client
-            .get("http://localhost:8008/_matrix/key/v2/server")
+            .get(format!("{}/_matrix/key/v2/server", server))
             .send()
             .unwrap();
         assert!(resp.status().is_success());
@@ -97,8 +105,12 @@ mod tests {
         };
         let access_token = crate::access_token();
         let client = crate::client();
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let resp = client
-            .post("http://localhost:8008/_matrix/client/v3/createRoom")
+            .post(format!("{}/_matrix/client/v3/createRoom", server))
             .header("Authorization", format!("Bearer {}", access_token))
             .json(&content)
             .send()
@@ -188,8 +200,12 @@ mod tests {
         let access_token = crate::access_token();
         let client = crate::client();
         let start = Instant::now();
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let resp = client
-            .post("http://localhost:8008/_matrix/client/v3/createRoom")
+            .post(format!("{}/_matrix/client/v3/createRoom", server))
             .header("Authorization", format!("Bearer {}", access_token))
             .json(&content)
             .send()
@@ -211,8 +227,12 @@ mod tests {
         let content = std::fs::read_to_string("./weird_ones/af84a60a1b7997b4.json").unwrap();
         let access_token = crate::access_token();
         let client = crate::client();
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let resp = client
-            .post("http://localhost:8008/_matrix/client/v3/createRoom")
+            .post(format!("{}/_matrix/client/v3/createRoom", server))
             .header("Authorization", format!("Bearer {}", access_token))
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .body(content)
@@ -276,8 +296,12 @@ mod tests {
         }*/
 
         let client = crate::client();
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let resp = client
-            .post("http://localhost:8008/_matrix/client/v3/login")
+            .post(format!("{}/_matrix/client/v3/login", server))
             .json(&json_data)
             .send();
         if let Ok(resp) = resp {
@@ -305,8 +329,12 @@ mod tests {
     #[test]
     fn fuzz_login() {
         let client = crate::client();
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let resp = client
-            .get("http://localhost:8008/_matrix/key/v2/server")
+            .get(format!("{}/_matrix/key/v2/server", server))
             .send()
             .unwrap();
         if !resp.status().is_success() {
@@ -357,8 +385,12 @@ mod tests {
         // TODO: Login once and reuse the access token
         let access_token = crate::access_token();
         let client = crate::client();
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let resp = client
-            .post("http://localhost:8008/_matrix/client/v3/createRoom")
+            .post(format!("{}/_matrix/client/v3/createRoom", server))
             .header("Authorization", format!("Bearer {}", access_token))
             .json(&json_data)
             .send();
@@ -392,8 +424,12 @@ mod tests {
     #[test]
     fn fuzz_create_room() {
         let client = crate::client();
+        let server = match env::var("MATRIX_SERVER") {
+            Ok(v) => v,
+            Err(e) => "http://localhost:8008".to_string(),
+        };
         let resp = client
-            .get("http://localhost:8008/_matrix/key/v2/server")
+            .get(format!("{}/_matrix/key/v2/server", server))
             .send()
             .unwrap();
         if !resp.status().is_success() {

@@ -1,7 +1,7 @@
 ## Server ##
 
-server_name: "localhost"
-public_baseurl: "http://localhost:8008"
+server_name: "synapse"
+public_baseurl: "http://synapse:8008"
 pid_file: /homeserver.pid
 web_client: False
 soft_file_limit: 0
@@ -40,8 +40,8 @@ listeners:
         compress: false
 
 ## Files ##
-media_store_path: "/synapse/data/media"
-uploads_path: "/synapse/data/uploads"
+media_store_path: "/data/media"
+uploads_path: "/data/uploads"
 
 ## Registration ##
 registration_shared_secret: "sahZae3yahjaequ8boh2cae5uo5eiciede2hoa9eew8mai1oy4iiChietheequ9U"
