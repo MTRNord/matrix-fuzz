@@ -100,7 +100,7 @@ mod tests {
             //room_alias_name: Some("\0".to_string()),
             visibility: Some("a".to_string()),
             is_direct: Some(false),
-            topic: Some("\0".to_string()),
+            topic: Some("a".to_string()),
             ..Default::default()
         };
         let access_token = crate::access_token();
