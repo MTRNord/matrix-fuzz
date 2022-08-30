@@ -100,7 +100,7 @@ mod tests {
             //room_alias_name: Some("\0".to_string()),
             visibility: Some("a".to_string()),
             is_direct: Some(false),
-            topic: Some("c".to_string()),
+            topic: Some("\0".to_string()),
             ..Default::default()
         };
         let access_token = crate::access_token();
@@ -126,14 +126,14 @@ mod tests {
         let content = CreateRoomMagicJSON {
             name: Some("beep; pg_sleep(50);--".to_string()),
             initial_state: vec![
-                crate::types::create_room::StateEventJSON {
+                /*crate::types::create_room::StateEventJSON {
                     _type: "m.room.member".to_string(),
                     state_key: "@fuzzer:localhost".to_string(),
                     content: json!({
                       "membership": "join",
                       "displayname": "beep\0' pg_sleep(50);--"
                     }),
-                },
+                },*/
                 crate::types::create_room::StateEventJSON {
                     _type: "beep; pg_sleep(50);--".to_string(),
                     state_key: "beep; pg_sleep(50);--".to_string(),
