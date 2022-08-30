@@ -3,4 +3,4 @@ FROM matrixdotorg/synapse:${version}
 
 COPY ./synapse_config.yaml /data/homeserver.yaml
 COPY ./synapse_log.yaml /data/log.yaml
-COPY ./synapse_signing.key /data/signing.key
+COPY ./synapse_signing.key /synapse/keys/signing.key
