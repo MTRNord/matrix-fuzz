@@ -1,3 +1,5 @@
+#![feature(path_file_prefix)]
+
 use std::path::Path;
 
 use convert_case::{Case, Casing};
