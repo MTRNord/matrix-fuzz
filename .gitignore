@@ -1,4 +1,4 @@
-/target
+target
 notes.md
 src/secrets.rs
 /fuzz

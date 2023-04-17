@@ -37,8 +37,9 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                                 // Generate test code from here
                                 tests.push(quote! {
                                     // TODO: Generate test code with name #function_ident
-                                    fn #function_ident() {
+                                    fn #function_ident(fuzz_input: &u8) -> bool {
                                         //blub
+                                        true
                                     }
 
                                     #[test]
