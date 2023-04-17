@@ -43,3 +43,9 @@ Matrix fuzzing is a dumb fuzzer fuzzing a few matrix endpoints. It requires a HS
 # Known bugs in the fuzzer
 
 The fuzzer generates arbitrary json objects currently very poorly. Resulting in a lot less cases than it should. Its a workaround for now until there is a nicer way.
+
+## Commit Guideline
+
+Please use [conventional commits](https://www.conventionalcommits.org). You can use the pre-commit script to ensure you
+do use conventional commits by running `pre-commit install -t prepare-commit-msg -t commit-msg`
+after [installing pre-commit](https://pre-commit.com/#install).

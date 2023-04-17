@@ -1,4 +1,3 @@
-use arbitrary::Arbitrary;
 use fuzzcheck::{DefaultMutator, Mutator};
 use fuzzcheck_serde_json_generator::json_value_mutator;
 use serde::{Deserialize, Serialize};
@@ -58,7 +57,7 @@ pub struct CreateRoomMagicJSON {
     pub visibility: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, DefaultMutator, Default, Arbitrary)]
+#[derive(Clone, Serialize, Deserialize, Debug, DefaultMutator, Default)]
 pub struct Invite3pid {
     pub address: String,
     pub id_access_token: String,

@@ -1,6 +1,4 @@
 pub mod create_room;
-
-use arbitrary::Arbitrary;
 use fuzzcheck::DefaultMutator;
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +20,7 @@ pub struct LoginPost {
     pub home_server: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, DefaultMutator, Arbitrary)]
+#[derive(Debug, Clone, Serialize, Deserialize, DefaultMutator)]
 pub struct LoginPostReq {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
@@ -46,7 +44,7 @@ pub struct LoginPostReq {
     pub user: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, DefaultMutator, Arbitrary)]
+#[derive(Debug, Clone, Serialize, Deserialize, DefaultMutator)]
 pub struct Identifier {
     #[serde(rename = "type")]
     pub _type: String,

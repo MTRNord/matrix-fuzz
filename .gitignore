@@ -2,6 +2,8 @@
 notes.md
 src/secrets.rs
 /fuzz
-/meep.rs
+meep.rs
 /weird_ones/security_issues
 /afl/*/out/*
+/.mypy_cache>
+blurp.rs
