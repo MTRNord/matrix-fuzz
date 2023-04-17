@@ -8,25 +8,36 @@ use quote::{format_ident, quote};
 use syn::{parse_macro_input, LitStr};
 use walkdir::WalkDir;
 
+mod openapi;
+
 #[proc_macro]
 pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let spec_path = parse_macro_input!(input as LitStr);
     let full_path = Path::new(&manifest_dir).join(spec_path.value());
 
+    let mut structs: Vec<_> = Vec::new();
     let mut tests: Vec<_> = Vec::new();
 
-    for entry in WalkDir::new(full_path) {
+    let folder = WalkDir::new(full_path).max_depth(1);
+    for entry in folder {
         match entry {
             Ok(entry) => {
-                if entry.file_type().is_file() {
-                    if let Some(extension) = entry.path().extension() {
-                        if extension == "yaml" {
-                            let module_name = entry.path().file_prefix();
-                            if let Some(module_name) = module_name {
-                                let module_name = module_name.to_string_lossy().to_string();
-                                // TODO: Parse module for paths and then generate function names from it
-                                let function_path = String::from("dummy");
+                if !entry.file_type().is_file() {
+                    continue;
+                }
+                let path = entry.path();
+                if let Some(extension) = path.extension() {
+                    if extension != "yaml" {
+                        continue;
+                    }
+                    let module_name = path.file_prefix();
+                    if let Some(module_name) = module_name {
+                        let module_name = module_name.to_string_lossy().to_string();
+                        let parsed = openapi::parse(path);
+                        for (path, path_description) in parsed.paths {
+                            if let Some(request) = path_description.get {
+                                let function_path = request.operation_id;
                                 let function_ident = format_ident!(
                                     "{}_{}",
                                     module_name.to_case(Case::Snake),
@@ -66,13 +77,68 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                                         assert!(!result.found_test_failure);
                                     }
                                 });
+                            } else if let Some(request) = path_description.post {
+                                let function_path = request.operation_id;
+                                let function_ident = format_ident!(
+                                    "{}_{}",
+                                    module_name.to_case(Case::Snake),
+                                    function_path.to_case(Case::Snake)
+                                );
+                                let struct_ident_body = format_ident!(
+                                    "{}{}Body",
+                                    module_name.to_case(Case::UpperCamel),
+                                    function_path.to_case(Case::UpperCamel)
+                                );
+                                let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
+
+                                // Generate body struct
+                                structs.push(quote! {
+                                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, fuzzcheck::DefaultMutator)]
+                                    struct #struct_ident_body {
+
+                                    }
+                                });
+
+                                // Generate test code from here
+                                tests.push(quote! {
+                                    // TODO: Generate test code with name #function_ident
+                                    fn #function_ident(fuzz_input: &crate::#struct_ident_body) -> bool {
+                                        //blub
+                                        true
+                                    }
+
+                                    #[test]
+                                    fn #fuzz_function_ident() {
+                                        let client = crate::client();
+                                        let server = match std::env::var("MATRIX_SERVER") {
+                                            Ok(v) => v,
+                                            Err(_) => "http://localhost:8008".to_string(),
+                                        };
+                                        // Healthcheck for matrix servers
+                                        let resp = client
+                                            // TODO: Set path from module
+                                            .get(format!("{}/_matrix/key/v2/server", server))
+                                            .send()
+                                            .unwrap();
+                                        if !resp.status().is_success() {
+                                            panic!("Failed to connect");
+                                        }
+
+                                        let result = fuzzcheck::fuzz_test(#function_ident)
+                                            .default_options()
+                                            .stop_after_first_test_failure(true)
+                                            .launch();
+                                        assert!(!result.found_test_failure);
+                                    }
+                                });
                             }
                         }
                     }
                 }
             }
             Err(e) => {
-                panic!("Error while walking spec folder: {e:?}")
+                eprintln!("Error while walking spec folder: {e:?}");
+                continue;
             }
         }
     }
@@ -153,6 +219,9 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                     .unwrap()
             })
         }
+
+
+        #(#structs)*
 
         #[cfg(test)]
         mod tests {
