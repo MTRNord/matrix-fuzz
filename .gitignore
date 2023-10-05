@@ -7,3 +7,4 @@ meep.rs
 /afl/*/out/*
 /.mypy_cache
 blurp.rs
+meow.rs

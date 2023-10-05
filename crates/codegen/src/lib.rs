@@ -86,7 +86,29 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                     };
 
                     #request_body
-                    true
+
+                    if let Ok(resp) = resp {
+                        let status = resp.status();
+                        // TODO: use mapping file for status to ignore/not ignore
+                        if !status.is_success() {
+                            /*if status == 400 {
+                                return true;
+                            }*/
+                            let content = resp.text();
+                            if let Ok(ref content) = content {
+                                // TODO: use mapping file for errors to ignore
+                                if content.contains("Unknown login type")
+                                    || content.contains("Invalid login submission")
+                                    || content.contains("Invalid username or password")
+                                {
+                                    return true;
+                                }
+                            }
+                            println!("Status: {:?}", status);
+                            println!("Content: {:?}", content);
+                        }
+                    }
+                    false
                 }
 
                 #[test]
@@ -186,6 +208,13 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                 }
             };
 
+            let mut possible_error_codes = Vec::new();
+            let responses = request.responses.responses;
+            for (code, _) in responses {
+                let int_code: u16 = code.parse().unwrap();
+                possible_error_codes.push(quote! {#int_code,});
+            }
+
             let function_body = quote! {
                 let mut json_data = fuzz_input.clone();
 
@@ -204,13 +233,14 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
 
                 #request_body
 
+                let allowed_codes = [
+                    #(#possible_error_codes)*
+                ];
+
                 if let Ok(resp) = resp {
                     let status = resp.status();
                     // TODO: use mapping file for status to ignore/not ignore
-                    if !status.is_success() {
-                        /*if status == 400 {
-                            return true;
-                        }*/
+                    if !allowed_codes.contains(status.as_u16()) {
                         let content = resp.text();
                         if let Ok(ref content) = content {
                             // TODO: use mapping file for errors to ignore
