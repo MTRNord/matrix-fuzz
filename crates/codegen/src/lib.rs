@@ -67,7 +67,7 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
     // Generate test code from here
     quote_spanned! { span=>
         // TODO: Make the fuzz input specific to the path. As in if there are multiple values use a tuple
-        fn #function_ident(fuzz_input: &::std::string::String) -> bool {
+        fn #function_ident(fuzz_input: &str) -> bool {
             let client = crate::client();
             let server = match std::env::var("MATRIX_SERVER") {
                 Ok(v) => v,
