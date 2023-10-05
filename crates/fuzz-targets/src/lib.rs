@@ -3,6 +3,7 @@
 #![allow(clippy::too_many_arguments)]
 #![feature(impl_trait_in_assoc_type)]
 #![feature(coverage_attribute)]
+#![warn(clippy::missing_const_for_fn)]
 
 use codegen::generate_fuzz_targets;
 
