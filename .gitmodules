@@ -1,4 +1,0 @@
-[submodule "crates/fuzz-targets/assets/api-1.6"]
-	path = crates/fuzz-targets/assets/api-1.8
-	url = https://github.com/matrix-org/matrix-spec.git
-	branch = release/v1.6

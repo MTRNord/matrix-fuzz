@@ -1,12 +1,11 @@
 [workspace]
 
-members = [
-    "crates/fuzz-targets",
-    "crates/codegen",
-]
+resolver = "2"
+
+members = ["crates/fuzz-targets", "crates/codegen"]
 
 [patch.crates-io]
-fuzzcheck = {git = "https://github.com/MTRNord/fuzzcheck-rs.git", branch = "patch-1"}
+fuzzcheck = { git = "https://github.com/MTRNord/fuzzcheck-rs.git", branch = "patch-1" }
 
 [patch.'https://github.com/loiclec/fuzzcheck-rs']
-fuzzcheck = {git = "https://github.com/MTRNord/fuzzcheck-rs.git", branch = "patch-1"}
+fuzzcheck = { git = "https://github.com/MTRNord/fuzzcheck-rs.git", branch = "patch-1" }

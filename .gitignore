@@ -5,5 +5,5 @@ src/secrets.rs
 meep.rs
 /weird_ones/security_issues
 /afl/*/out/*
-/.mypy_cache>
+/.mypy_cache
 blurp.rs

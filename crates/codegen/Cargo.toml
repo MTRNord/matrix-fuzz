@@ -7,11 +7,10 @@ edition = "2021"
 syn = "2.0"
 quote = "1.0"
 serde = { version = "1.0.160", features = ["derive"] }
-walkdir = "2.3.3"
-proc-macro2 = "1.0.56"
+proc-macro2 = "1.0.67"
 convert_case = "0.6.0"
-serde_yaml = "0.9.21"
-serde_json = "1.0.96"
+okapi = "0.7.0-rc.1"
+reqwest = { version = "0.11.22", features = ["blocking", "json"] }
 
 [lib]
 proc-macro = true

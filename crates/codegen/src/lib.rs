@@ -1,147 +1,279 @@
 #![feature(path_file_prefix)]
 
-use std::path::Path;
-
 use convert_case::{Case, Casing};
+use okapi::{
+    openapi3::{OpenApi, RefOr},
+    schemars::schema::Schema,
+};
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, LitStr};
-use walkdir::WalkDir;
 
-mod openapi;
+fn load_ref<T: for<'de> serde::de::Deserialize<'de> + Clone>(ref_or_object: &RefOr<T>) -> T {
+    match ref_or_object {
+        RefOr::Ref(_) => {
+            panic!("This would indicate a broken ref")
+        }
+        RefOr::Object(obj) => obj.clone(),
+    }
+}
 
 #[proc_macro]
 pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let spec_path = parse_macro_input!(input as LitStr);
-    let full_path = Path::new(&manifest_dir).join(spec_path.value());
+    let spec_url = parse_macro_input!(input as LitStr).value();
 
     let mut structs: Vec<_> = Vec::new();
     let mut tests: Vec<_> = Vec::new();
 
-    let folder = WalkDir::new(full_path).max_depth(1);
-    for entry in folder {
-        match entry {
-            Ok(entry) => {
-                if !entry.file_type().is_file() {
-                    continue;
-                }
-                let path = entry.path();
-                if let Some(extension) = path.extension() {
-                    if extension != "yaml" {
-                        continue;
+    let parsed: OpenApi = reqwest::blocking::get(spec_url)
+        .expect("Unable to get spec api")
+        .json()
+        .expect("Unable to parse spec as openapi json");
+    for (path, path_description) in parsed.paths {
+        if let Some(request) = path_description.get {
+            let function_path = request.operation_id.unwrap();
+            let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
+            let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
+
+            // TODO: Find an replace path arguments with random data.
+            let request_body = if let Some(security) = request.security {
+                if let Some(security) = security.first() {
+                    if security.contains_key("accessToken") {
+                        quote! {
+                            let access_token = crate::access_token();
+                            let resp = client
+                                .get(format!("{}{}", server, #path))
+                                .header("Authorization", format!("Bearer {}", access_token))
+                                .send()
+                                .unwrap();
+                        }
+                    } else {
+                        quote! {
+                            let resp = client
+                                .get(format!("{}{}", server, #path))
+                                .send()
+                                .unwrap();
+                        }
                     }
-                    let module_name = path.file_prefix();
-                    if let Some(module_name) = module_name {
-                        let module_name = module_name.to_string_lossy().to_string();
-                        let parsed = openapi::parse(path);
-                        for (path, path_description) in parsed.paths {
-                            if let Some(request) = path_description.get {
-                                let function_path = request.operation_id;
-                                let function_ident = format_ident!(
-                                    "{}_{}",
-                                    module_name.to_case(Case::Snake),
-                                    function_path.to_case(Case::Snake)
-                                );
-                                let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
+                } else {
+                    quote! {
+                        let resp = client
+                            .get(format!("{}{}", server, #path))
+                            .send()
+                            .unwrap();
+                    }
+                }
+            } else {
+                quote! {
+                    let resp = client
+                        .get(format!("{}{}", server, #path))
+                        .send()
+                        .unwrap();
+                }
+            };
 
-                                // Generate test code from here
-                                tests.push(quote! {
-                                    // TODO: Generate test code with name #function_ident
-                                    fn #function_ident(fuzz_input: &u8) -> bool {
-                                        //blub
-                                        true
-                                    }
+            // Generate test code from here
+            tests.push(quote! {
+                // TODO: Make the fuzz input specific to the path. As in if there are multiple values use a tuple
+                fn #function_ident(fuzz_input: String) -> bool {
+                    let mut json_data = fuzz_input.clone();
 
-                                    #[test]
-                                    fn #fuzz_function_ident() {
-                                        let client = crate::client();
-                                        let server = match std::env::var("MATRIX_SERVER") {
-                                            Ok(v) => v,
-                                            Err(_) => "http://localhost:8008".to_string(),
-                                        };
-                                        // Healthcheck for matrix servers
-                                        let resp = client
-                                            // TODO: Set path from module
-                                            .get(format!("{}/_matrix/key/v2/server", server))
-                                            .send()
-                                            .unwrap();
-                                        if !resp.status().is_success() {
-                                            panic!("Failed to connect");
-                                        }
+                    let client = crate::client();
+                    let server = match std::env::var("MATRIX_SERVER") {
+                        Ok(v) => v,
+                        Err(_) => "http://localhost:8008".to_string(),
+                    };
 
-                                        let result = fuzzcheck::fuzz_test(#function_ident)
-                                            .default_options()
-                                            .stop_after_first_test_failure(true)
-                                            .launch();
-                                        assert!(!result.found_test_failure);
-                                    }
-                                });
-                            } else if let Some(request) = path_description.post {
-                                let function_path = request.operation_id;
-                                let function_ident = format_ident!(
-                                    "{}_{}",
-                                    module_name.to_case(Case::Snake),
-                                    function_path.to_case(Case::Snake)
-                                );
-                                let struct_ident_body = format_ident!(
-                                    "{}{}Body",
-                                    module_name.to_case(Case::UpperCamel),
-                                    function_path.to_case(Case::UpperCamel)
-                                );
-                                let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
+                    #request_body
+                    true
+                }
 
-                                // Generate body struct
-                                structs.push(quote! {
-                                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, fuzzcheck::DefaultMutator)]
-                                    struct #struct_ident_body {
+                #[test]
+                fn #fuzz_function_ident() {
+                    let client = crate::client();
+                    let server = match std::env::var("MATRIX_SERVER") {
+                        Ok(v) => v,
+                        Err(_) => "http://localhost:8008".to_string(),
+                    };
+                    // Healthcheck for matrix servers
+                    let resp = client
+                        // TODO: Set path from module
+                        .get(format!("{}/_matrix/key/v2/server", server))
+                        .send()
+                        .unwrap();
+                    if !resp.status().is_success() {
+                        panic!("Failed to connect");
+                    }
 
-                                    }
-                                });
+                    let result = fuzzcheck::fuzz_test(#function_ident)
+                        .default_options()
+                        .stop_after_first_test_failure(true)
+                        .launch();
+                    assert!(!result.found_test_failure);
+                }
+            });
+        } else if let Some(request) = path_description.post {
+            let function_path = request.operation_id.unwrap();
+            let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
+            let struct_ident_body = format_ident!("{}", function_path.to_case(Case::UpperCamel));
+            let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
 
-                                // Generate test code from here
-                                tests.push(quote! {
-                                    // TODO: Generate test code with name #function_ident
-                                    fn #function_ident(fuzz_input: &crate::#struct_ident_body) -> bool {
-                                        //blub
-                                        true
-                                    }
-
-                                    #[test]
-                                    fn #fuzz_function_ident() {
-                                        let client = crate::client();
-                                        let server = match std::env::var("MATRIX_SERVER") {
-                                            Ok(v) => v,
-                                            Err(_) => "http://localhost:8008".to_string(),
-                                        };
-                                        // Healthcheck for matrix servers
-                                        let resp = client
-                                            // TODO: Set path from module
-                                            .get(format!("{}/_matrix/key/v2/server", server))
-                                            .send()
-                                            .unwrap();
-                                        if !resp.status().is_success() {
-                                            panic!("Failed to connect");
-                                        }
-
-                                        let result = fuzzcheck::fuzz_test(#function_ident)
-                                            .default_options()
-                                            .stop_after_first_test_failure(true)
-                                            .launch();
-                                        assert!(!result.found_test_failure);
-                                    }
+            let mut struct_body = Vec::new();
+            if let Some(request_body) = request.request_body {
+                let obj = load_ref(&request_body);
+                if let Some(json_obj) = obj.content.get("application/json") {
+                    let schema = json_obj.schema.clone().expect("Missing schema for body");
+                    if let Some(properties_obj) = schema.object {
+                        let properties = properties_obj.properties;
+                        for (key, value) in properties.iter() {
+                            let key_ident =
+                                format_ident!("{}", key.replace('.', "_").to_case(Case::Snake));
+                            if let Schema::Object(_type_definition) = value {
+                                struct_body.push(quote! {
+                                    #key_ident: ::serde_json::Value,
                                 });
                             }
                         }
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("Error while walking spec folder: {e:?}");
-                continue;
-            }
+
+            // Generate body struct
+            structs.push(quote! {
+                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, fuzzcheck::DefaultMutator)]
+                struct #struct_ident_body {
+                    #(#struct_body)*
+                }
+            });
+
+            let path = LitStr::new(&path, Span::call_site());
+
+            // TODO: Make sure we also replace path arguments either with sensible or non sensible stuff
+            let request_body = if let Some(security) = request.security {
+                if let Some(security) = security.first() {
+                    if security.contains_key("accessToken") {
+                        quote! {
+                            let access_token = crate::access_token();
+                            let resp = client
+                                .post(format!("{}{}", server, #path))
+                                .header("Authorization", format!("Bearer {}", access_token))
+                                .json(&json_data)
+                                .send();
+                        }
+                    } else {
+                        quote! {
+                            let resp = client
+                                .post(format!("{}{}", server, #path))
+                                .json(&json_data)
+                                .send();
+                        }
+                    }
+                } else {
+                    quote! {
+                        let resp = client
+                            .post(format!("{}{}", server, #path))
+                            .json(&json_data)
+                            .send();
+                    }
+                }
+            } else {
+                quote! {
+                    let resp = client
+                        .post(format!("{}{}", server, #path))
+                        .json(&json_data)
+                        .send();
+                }
+            };
+
+            let function_body = quote! {
+                let mut json_data = fuzz_input.clone();
+
+                // TODO: iterate over the fields and automatically remove faulty characters
+                //  if let Some(user) = &json_data.user {
+                //    if user.contains('\0') {
+                //      json_data.user = Some(user.replace('\0', ""));
+                //    }
+                //  }
+
+                let client = crate::client();
+                let server = match std::env::var("MATRIX_SERVER") {
+                    Ok(v) => v,
+                    Err(_) => "http://localhost:8008".to_string(),
+                };
+
+                #request_body
+
+                if let Ok(resp) = resp {
+                    let status = resp.status();
+                    // TODO: use mapping file for status to ignore/not ignore
+                    if !status.is_success() {
+                        /*if status == 400 {
+                            return true;
+                        }*/
+                        let content = resp.text();
+                        if let Ok(ref content) = content {
+                            // TODO: use mapping file for errors to ignore
+                            if content.contains("Unknown login type")
+                                || content.contains("Invalid login submission")
+                                || content.contains("Invalid username or password")
+                            {
+                                return true;
+                            }
+                        }
+                        println!("Status: {:?}", status);
+                        println!("Content: {:?}", content);
+                    }
+                }
+                false
+            };
+
+            let main_function = if let Some(description) = path_description.description {
+                let description_literal = LitStr::new(&description, Span::call_site());
+                quote! {
+                    #[doc = #description_literal]
+                    fn #function_ident(fuzz_input: &crate::#struct_ident_body) -> bool {
+                        #function_body
+                    }
+                }
+            } else {
+                quote! {
+                    fn #function_ident(fuzz_input: &crate::#struct_ident_body) -> bool {
+                        #function_body
+                    }
+                }
+            };
+
+            // Generate test code from here
+            tests.push(quote! {
+                #main_function
+
+                #[test]
+                fn #fuzz_function_ident() {
+                    let client = crate::client();
+                    let server = match std::env::var("MATRIX_SERVER") {
+                        Ok(v) => v,
+                        Err(_) => "http://localhost:8008".to_string(),
+                    };
+                    // Healthcheck for matrix servers
+                    let resp = client
+                        .get(format!("{}/_matrix/key/v2/server", server))
+                        .send()
+                        .unwrap();
+                    if !resp.status().is_success() {
+                        panic!("Failed to connect");
+                    }
+
+                    let result = fuzzcheck::fuzz_test(#function_ident)
+                        .default_options()
+                        .stop_after_first_test_failure(true)
+                        .launch();
+                    assert!(!result.found_test_failure);
+                }
+            });
         }
     }
+
     let expanded = quote! {
         #[derive(Debug, serde::Serialize, serde::Deserialize)]
         struct LoginGet {
@@ -161,7 +293,7 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
             pub home_server: String,
         }
 
-        #[no_coverage]
+        #[coverage(off)]
         fn login() -> String {
             let server = match std::env::var("MATRIX_SERVER") {
                 Ok(v) => v,
@@ -201,13 +333,13 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
             res.access_token
         }
 
-        #[no_coverage]
+        #[coverage(off)]
         pub fn access_token() -> &'static String {
             static INSTANCE: once_cell::sync::OnceCell<String> = once_cell::sync::OnceCell::new();
             INSTANCE.get_or_init(login)
         }
 
-        #[no_coverage]
+        #[coverage(off)]
         pub fn client() -> &'static reqwest::blocking::Client {
             static INSTANCE: once_cell::sync::OnceCell<reqwest::blocking::Client> = once_cell::sync::OnceCell::new();
             INSTANCE.get_or_init(|| {
@@ -227,7 +359,6 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
         mod tests {
             #(#tests)*
         }
-
     };
 
     TokenStream::from(expanded)
