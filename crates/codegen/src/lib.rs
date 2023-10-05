@@ -18,14 +18,35 @@ fn load_ref<T: for<'de> serde::de::Deserialize<'de> + Clone>(ref_or_object: &Ref
     }
 }
 
+fn get_error_codes_for_path(
+    function_span: Span,
+    request: Operation,
+) -> Vec<proc_macro2::TokenStream> {
+    let mut possible_error_codes = Vec::new();
+    let responses = request.responses.responses;
+    for (code, _) in responses {
+        let int_code: u16 = code.parse().unwrap();
+        possible_error_codes.push(quote_spanned! { function_span => #int_code,});
+    }
+    possible_error_codes
+}
+
 fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_macro2::TokenStream {
-    let function_path = request.operation_id.unwrap();
+    let function_path = request.operation_id.clone().unwrap();
     let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
     let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
     let function_span = function_ident.span();
 
+    fn default_get_request(function_span: Span, path: String) -> proc_macro2::TokenStream {
+        quote_spanned! {function_span =>
+            let resp = client
+                .get(format!("{}{}", server, #path))
+                .send();
+        }
+    }
+
     // TODO: Find an replace path arguments with random data.
-    let request_body: proc_macro2::TokenStream = if let Some(security) = request.security {
+    let request_body: proc_macro2::TokenStream = if let Some(ref security) = request.security {
         if let Some(security) = security.first() {
             if security.contains_key("accessToken") {
                 quote_spanned! {function_span =>
@@ -36,33 +57,16 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
                         .send();
                 }
             } else {
-                quote_spanned! {function_span =>
-                    let resp = client
-                        .get(format!("{}{}", server, #path))
-                        .send();
-                }
+                default_get_request(function_span, path)
             }
         } else {
-            quote_spanned! {function_span =>
-                let resp = client
-                    .get(format!("{}{}", server, #path))
-                    .send();
-            }
+            default_get_request(function_span, path)
         }
     } else {
-        quote_spanned! {function_span =>
-            let resp = client
-                .get(format!("{}{}", server, #path))
-                .send();
-        }
+        default_get_request(function_span, path)
     };
 
-    let mut possible_error_codes = Vec::new();
-    let responses = request.responses.responses;
-    for (code, _) in responses {
-        let int_code: u16 = code.parse().unwrap();
-        possible_error_codes.push(quote! {#int_code,});
-    }
+    let possible_error_codes = get_error_codes_for_path(function_span, request);
 
     // Generate test code from here
     quote_spanned! { span=>
@@ -133,7 +137,7 @@ fn generate_post_targets(
     structs: &mut Vec<proc_macro2::TokenStream>,
     request: Operation,
 ) -> proc_macro2::TokenStream {
-    let function_path = request.operation_id.unwrap();
+    let function_path = request.operation_id.clone().unwrap();
     let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
     let struct_ident_body = format_ident!("{}", function_path.to_case(Case::UpperCamel));
     let struct_span = struct_ident_body.span();
@@ -141,8 +145,8 @@ fn generate_post_targets(
     let function_span = function_ident.span();
 
     let mut struct_body = Vec::new();
-    if let Some(request_body) = request.request_body {
-        let obj = load_ref(&request_body);
+    if let Some(ref request_body) = request.request_body {
+        let obj = load_ref(request_body);
         if let Some(json_obj) = obj.content.get("application/json") {
             let schema = json_obj.schema.clone().expect("Missing schema for body");
             if let Some(properties_obj) = schema.object {
@@ -168,10 +172,17 @@ fn generate_post_targets(
         }
     });
 
-    let path = LitStr::new(&path, Span::call_site());
+    fn default_post_request(function_span: Span, path: String) -> proc_macro2::TokenStream {
+        quote_spanned! { function_span =>
+            let resp = client
+                .post(format!("{}{}", server, #path))
+                .json(&json_data)
+                .send();
+        }
+    }
 
     // TODO: Make sure we also replace path arguments either with sensible or non sensible stuff
-    let request_body = if let Some(security) = request.security {
+    let request_body = if let Some(ref security) = request.security {
         if let Some(security) = security.first() {
             if security.contains_key("accessToken") {
                 quote_spanned! { function_span =>
@@ -183,36 +194,16 @@ fn generate_post_targets(
                         .send();
                 }
             } else {
-                quote_spanned! { function_span =>
-                    let resp = client
-                        .post(format!("{}{}", server, #path))
-                        .json(&json_data)
-                        .send();
-                }
+                default_post_request(function_span, path)
             }
         } else {
-            quote_spanned! { function_span =>
-                let resp = client
-                    .post(format!("{}{}", server, #path))
-                    .json(&json_data)
-                    .send();
-            }
+            default_post_request(function_span, path)
         }
     } else {
-        quote_spanned! { function_span =>
-            let resp = client
-                .post(format!("{}{}", server, #path))
-                .json(&json_data)
-                .send();
-        }
+        default_post_request(function_span, path)
     };
 
-    let mut possible_error_codes = Vec::new();
-    let responses = request.responses.responses;
-    for (code, _) in responses {
-        let int_code: u16 = code.parse().unwrap();
-        possible_error_codes.push(quote_spanned! { function_span => #int_code,});
-    }
+    let possible_error_codes = get_error_codes_for_path(function_span, request);
 
     let function_body = quote_spanned! { function_span =>
         let mut json_data = fuzz_input.clone();
