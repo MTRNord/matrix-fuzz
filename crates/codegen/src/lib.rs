@@ -1,5 +1,3 @@
-#![feature(path_file_prefix)]
-
 use convert_case::{Case, Casing};
 use okapi::{
     openapi3::{OpenApi, RefOr},
@@ -45,38 +43,41 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                             let resp = client
                                 .get(format!("{}{}", server, #path))
                                 .header("Authorization", format!("Bearer {}", access_token))
-                                .send()
-                                .unwrap();
+                                .send();
                         }
                     } else {
                         quote! {
                             let resp = client
                                 .get(format!("{}{}", server, #path))
-                                .send()
-                                .unwrap();
+                                .send();
                         }
                     }
                 } else {
                     quote! {
                         let resp = client
                             .get(format!("{}{}", server, #path))
-                            .send()
-                            .unwrap();
+                            .send();
                     }
                 }
             } else {
                 quote! {
                     let resp = client
                         .get(format!("{}{}", server, #path))
-                        .send()
-                        .unwrap();
+                        .send();
                 }
             };
+
+            let mut possible_error_codes = Vec::new();
+            let responses = request.responses.responses;
+            for (code, _) in responses {
+                let int_code: u16 = code.parse().unwrap();
+                possible_error_codes.push(quote! {#int_code,});
+            }
 
             // Generate test code from here
             tests.push(quote! {
                 // TODO: Make the fuzz input specific to the path. As in if there are multiple values use a tuple
-                fn #function_ident(fuzz_input: String) -> bool {
+                fn #function_ident(fuzz_input: &::std::string::String) -> bool {
                     let mut json_data = fuzz_input.clone();
 
                     let client = crate::client();
@@ -87,13 +88,13 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
 
                     #request_body
 
+                    let allowed_codes = [
+                        #(#possible_error_codes)*
+                    ];
+
                     if let Ok(resp) = resp {
                         let status = resp.status();
-                        // TODO: use mapping file for status to ignore/not ignore
-                        if !status.is_success() {
-                            /*if status == 400 {
-                                return true;
-                            }*/
+                        if !allowed_codes.contains(&status.as_u16()) {
                             let content = resp.text();
                             if let Ok(ref content) = content {
                                 // TODO: use mapping file for errors to ignore
@@ -153,7 +154,8 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                                 format_ident!("{}", key.replace('.', "_").to_case(Case::Snake));
                             if let Schema::Object(_type_definition) = value {
                                 struct_body.push(quote! {
-                                    #key_ident: ::serde_json::Value,
+                                    #[field_mutator(::fuzzcheck_serde_json_generator::ValueMutator = { json_value_mutator() })]
+                                    #key_ident: ::serde_json::Value
                                 });
                             }
                         }
@@ -163,9 +165,9 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
 
             // Generate body struct
             structs.push(quote! {
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, fuzzcheck::DefaultMutator)]
+                #[derive(::std::fmt::Debug, ::std::clone::Clone, ::serde::Serialize, ::serde::Deserialize, ::fuzzcheck::DefaultMutator)]
                 struct #struct_ident_body {
-                    #(#struct_body)*
+                    #(#struct_body),*
                 }
             });
 
@@ -240,7 +242,7 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
                 if let Ok(resp) = resp {
                     let status = resp.status();
                     // TODO: use mapping file for status to ignore/not ignore
-                    if !allowed_codes.contains(status.as_u16()) {
+                    if !allowed_codes.contains(&status.as_u16()) {
                         let content = resp.text();
                         if let Ok(ref content) = content {
                             // TODO: use mapping file for errors to ignore
@@ -305,26 +307,28 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
     }
 
     let expanded = quote! {
-        #[derive(Debug, serde::Serialize, serde::Deserialize)]
+        use ::fuzzcheck_serde_json_generator::json_value_mutator;
+
+        #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
         struct LoginGet {
             pub flows: Vec<Flow>,
         }
 
-        #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+        #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize, ::std::cmp::PartialEq, ::std::cmp::Eq)]
         struct Flow {
             #[serde(rename = "type")]
-            pub type_: String,
+            pub type_: ::std::string::String,
         }
 
-        #[derive(Debug, serde::Serialize, serde::Deserialize)]
+        #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
         struct LoginPost {
-            pub user_id: String,
-            pub access_token: String,
-            pub home_server: String,
+            pub user_id: ::std::string::String,
+            pub access_token: ::std::string::String,
+            pub home_server: ::std::string::String,
         }
 
         #[coverage(off)]
-        fn login() -> String {
+        fn login() -> ::std::string::String {
             let server = match std::env::var("MATRIX_SERVER") {
                 Ok(v) => v,
                 Err(_) => "http://localhost:8008".to_string(),
@@ -364,8 +368,8 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
         }
 
         #[coverage(off)]
-        pub fn access_token() -> &'static String {
-            static INSTANCE: once_cell::sync::OnceCell<String> = once_cell::sync::OnceCell::new();
+        pub fn access_token() -> &'static ::std::string::String {
+            static INSTANCE: once_cell::sync::OnceCell<::std::string::String> = once_cell::sync::OnceCell::new();
             INSTANCE.get_or_init(login)
         }
 
