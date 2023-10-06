@@ -82,7 +82,6 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
         }
     }
 
-    // TODO: Find an replace path arguments with random data.
     let request_body: proc_macro2::TokenStream = if let Some(ref security) = request.security {
         if let Some(security) = security.first() {
             if security.contains_key("accessToken") {
@@ -113,7 +112,6 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
 
     // Generate test code from here
     quote_spanned! { span=>
-        // TODO: Make the fuzz input specific to the path. As in if there are multiple values use a tuple
         fn #function_ident(#function_params) -> bool {
             let client = crate::client();
             let server = match std::env::var("MATRIX_SERVER") {
@@ -156,7 +154,6 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
             };
             // Healthcheck for matrix servers
             let resp = client
-                // TODO: Set path from module
                 .get(format!("{}/_matrix/key/v2/server", server))
                 .send()
                 .unwrap();
@@ -254,7 +251,6 @@ fn generate_post_targets(
         }
     }
 
-    // TODO: Make sure we also replace path arguments either with sensible or non sensible stuff
     let request_body = if let Some(ref security) = request.security {
         if let Some(security) = security.first() {
             if security.contains_key("accessToken") {
@@ -303,7 +299,6 @@ fn generate_post_targets(
 
         if let Ok(resp) = resp {
             let status = resp.status();
-            // TODO: use mapping file for status to ignore/not ignore
             if !allowed_codes.contains(&status.as_u16()) {
                 let content = resp.text();
                 if let Ok(ref content) = content {
