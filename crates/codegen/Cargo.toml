@@ -11,6 +11,7 @@ proc-macro2 = "1.0.67"
 convert_case = "0.6.0"
 okapi = "0.7.0-rc.1"
 reqwest = { version = "0.11.22", features = ["blocking", "json"] }
+lazy-regex = "3.0.2"
 
 [lib]
 proc-macro = true

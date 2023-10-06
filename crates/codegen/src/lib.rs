@@ -1,5 +1,6 @@
 #![warn(clippy::missing_const_for_fn)]
 use convert_case::{Case, Casing};
+use lazy_regex::{regex, regex::Match};
 use okapi::{
     openapi3::{OpenApi, Operation, PathItem, RefOr},
     schemars::schema::Schema,
@@ -31,16 +32,52 @@ fn get_error_codes_for_path(
     possible_error_codes
 }
 
+fn extract_path_arguments(path: &str) -> Vec<Match> {
+    let path_regex = regex!(r"(?m)\{.*?\}");
+    let result = path_regex.captures_iter(path);
+
+    result.map(|captures| captures.get(0).unwrap()).collect()
+}
+
 fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_macro2::TokenStream {
     let function_path = request.operation_id.clone().unwrap();
     let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
     let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
     let function_span = function_ident.span();
 
-    fn default_get_request(function_span: Span, path: String) -> proc_macro2::TokenStream {
+    let path = path.trim();
+    let mut path_code = quote_spanned! {function_span =>.get(format!("{}{}", server, #path))};
+    let path_args = extract_path_arguments(path);
+    let mut format_string = format!("{{}}{path}");
+    let mut format_helpers = Vec::new();
+    let mut unknowns: usize = 0;
+    let mut unknowns_helper = Vec::new();
+    for arg in &path_args {
+        let string_match = arg.as_str();
+        format_string = format_string.replace(string_match, "{}");
+        if string_match.contains("roomId") {
+            let function_ident = quote! {crate::create_fresh_room()};
+            format_helpers.push(function_ident);
+        } else {
+            let j = syn::Index::from(unknowns);
+            // TODO: These are ones that are for sure wrong. We really need to see that we get instead random data from the fuzzer here.
+            let function_ident = quote! {fuzz_input.#j};
+            format_helpers.push(function_ident);
+            unknowns += 1;
+            unknowns_helper.push(quote! {String,})
+        }
+    }
+    if !path_args.is_empty() {
+        path_code = quote_spanned! {function_span =>.get(format!(#format_string, server, #(#format_helpers),*))};
+    }
+
+    fn default_get_request(
+        function_span: Span,
+        path_code: proc_macro2::TokenStream,
+    ) -> proc_macro2::TokenStream {
         quote_spanned! {function_span =>
             let resp = client
-                .get(format!("{}{}", server, #path))
+                #path_code
                 .send();
         }
     }
@@ -52,26 +89,32 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
                 quote_spanned! {function_span =>
                     let access_token = crate::access_token();
                     let resp = client
-                        .get(format!("{}{}", server, #path))
+                        #path_code
                         .header("Authorization", format!("Bearer {}", access_token))
                         .send();
                 }
             } else {
-                default_get_request(function_span, path)
+                default_get_request(function_span, path_code)
             }
         } else {
-            default_get_request(function_span, path)
+            default_get_request(function_span, path_code)
         }
     } else {
-        default_get_request(function_span, path)
+        default_get_request(function_span, path_code)
     };
 
     let possible_error_codes = get_error_codes_for_path(function_span, request);
 
+    let function_params = if !unknowns_helper.is_empty() {
+        quote! {fuzz_input: &(#(#unknowns_helper)*)}
+    } else {
+        quote! {_: &Vec<u8>}
+    };
+
     // Generate test code from here
     quote_spanned! { span=>
         // TODO: Make the fuzz input specific to the path. As in if there are multiple values use a tuple
-        fn #function_ident(fuzz_input: &str) -> bool {
+        fn #function_ident(#function_params) -> bool {
             let client = crate::client();
             let server = match std::env::var("MATRIX_SERVER") {
                 Ok(v) => v,
@@ -172,10 +215,40 @@ fn generate_post_targets(
         }
     });
 
-    fn default_post_request(function_span: Span, path: String) -> proc_macro2::TokenStream {
+    let path = path.trim();
+    let mut path_code = quote_spanned! {function_span =>.post(format!("{}{}", server, #path))};
+    let path_args = extract_path_arguments(path);
+    let mut format_string = format!("{{}}{path}");
+    let mut format_helpers = Vec::new();
+    let mut unknowns: usize = 0;
+    let mut unknowns_helper = Vec::new();
+    for arg in &path_args {
+        let string_match = arg.as_str();
+        format_string = format_string.replace(string_match, "{}");
+        if string_match.contains("roomId") {
+            let function_ident = quote! {crate::create_fresh_room()};
+            format_helpers.push(function_ident);
+        } else {
+            let i = syn::Index::from(1);
+            let j = syn::Index::from(unknowns);
+            // TODO: These are ones that are for sure wrong. We really need to see that we get instead random data from the fuzzer here.
+            let function_ident = quote! {fuzz_input.#i.#j};
+            format_helpers.push(function_ident);
+            unknowns += 1;
+            unknowns_helper.push(quote! {String,})
+        }
+    }
+    if !path_args.is_empty() {
+        path_code = quote_spanned! {function_span =>.post(format!(#format_string, server, #(#format_helpers),*))};
+    }
+
+    fn default_post_request(
+        function_span: Span,
+        path_code: proc_macro2::TokenStream,
+    ) -> proc_macro2::TokenStream {
         quote_spanned! { function_span =>
             let resp = client
-                .post(format!("{}{}", server, #path))
+                #path_code
                 .json(&json_data)
                 .send();
         }
@@ -188,25 +261,26 @@ fn generate_post_targets(
                 quote_spanned! { function_span =>
                     let access_token = crate::access_token();
                     let resp = client
-                        .post(format!("{}{}", server, #path))
+                        #path_code
                         .header("Authorization", format!("Bearer {}", access_token))
                         .json(&json_data)
                         .send();
                 }
             } else {
-                default_post_request(function_span, path)
+                default_post_request(function_span, path_code)
             }
         } else {
-            default_post_request(function_span, path)
+            default_post_request(function_span, path_code)
         }
     } else {
-        default_post_request(function_span, path)
+        default_post_request(function_span, path_code)
     };
 
     let possible_error_codes = get_error_codes_for_path(function_span, request);
 
+    let i = syn::Index::from(0);
     let function_body = quote_spanned! { function_span =>
-        let mut json_data = fuzz_input.clone();
+        let mut json_data = fuzz_input.#i.clone();
 
         // TODO: iterate over the fields and automatically remove faulty characters
         //  if let Some(user) = &json_data.user {
@@ -248,17 +322,23 @@ fn generate_post_targets(
         false
     };
 
+    let function_params = if !unknowns_helper.is_empty() {
+        quote! {fuzz_input: &(crate::#struct_ident_body, (#(#unknowns_helper)*))}
+    } else {
+        quote! {fuzz_input: &(crate::#struct_ident_body,)}
+    };
+
     let main_function = if let Some(description) = &path_description.description {
         let description_literal = LitStr::new(description, Span::call_site());
         quote_spanned! { span =>
             #[doc = #description_literal]
-            fn #function_ident(fuzz_input: &crate::#struct_ident_body) -> bool {
+            fn #function_ident(#function_params) -> bool {
                 #function_body
             }
         }
     } else {
         quote_spanned! { span =>
-            fn #function_ident(fuzz_input: &crate::#struct_ident_body) -> bool {
+            fn #function_ident(#function_params) -> bool {
                 #function_body
             }
         }
@@ -382,13 +462,13 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
         }
 
         #[coverage(off)]
-        pub fn access_token() -> &'static ::std::string::String {
+        fn access_token() -> &'static ::std::string::String {
             static INSTANCE: ::once_cell::sync::OnceCell<::std::string::String> = ::once_cell::sync::OnceCell::new();
             INSTANCE.get_or_init(login)
         }
 
         #[coverage(off)]
-        pub fn client() -> &'static ::reqwest::blocking::Client {
+        fn client() -> &'static ::reqwest::blocking::Client {
             static INSTANCE: ::once_cell::sync::OnceCell<::reqwest::blocking::Client> = ::once_cell::sync::OnceCell::new();
             INSTANCE.get_or_init(|| {
                 ::reqwest::blocking::Client::builder()
@@ -400,6 +480,38 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
             })
         }
 
+        #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
+        struct RoomCreateHelperBody {
+            pub preset: String,
+        }
+
+        #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
+        struct RoomCreateHelperResp {
+            pub room_id: String,
+        }
+
+        fn create_fresh_room() -> String {
+            let client = crate::client();
+            let server = match std::env::var("MATRIX_SERVER") {
+                Ok(v) => v,
+                Err(_) => "http://localhost:8008".to_string(),
+            };
+
+            let data = RoomCreateHelperBody {
+                preset: String::from("private_chat")
+            };
+
+            let access_token = crate::access_token();
+            let resp: RoomCreateHelperResp = client
+                .post(format!("{}/_matrix/client/v3/createRoom", server))
+                .header("Authorization", format!("Bearer {}", access_token))
+                .json(&data)
+                .send()
+                .unwrap()
+                .json()
+                .unwrap();
+            resp.room_id
+        }
 
         #(#structs)*
 
