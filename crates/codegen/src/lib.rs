@@ -27,6 +27,7 @@ fn get_error_codes_for_path(
     let responses = request.responses.responses;
     for (code, _) in responses {
         let int_code: u16 = code.parse().unwrap();
+
         possible_error_codes.push(quote_spanned! { function_span => #int_code,});
     }
     possible_error_codes
@@ -61,7 +62,8 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
         } else {
             let j = syn::Index::from(unknowns);
             // TODO: These are ones that are for sure wrong. We really need to see that we get instead random data from the fuzzer here.
-            let function_ident = quote! {fuzz_input.#j};
+            let function_ident: proc_macro2::TokenStream =
+                quote! {crate::truncate_string(&fuzz_input.#j,255).replace(['/','\0'],"")};
             format_helpers.push(function_ident);
             unknowns += 1;
             unknowns_helper.push(quote! {String,})
@@ -127,13 +129,16 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
 
             if let Ok(resp) = resp {
                 let status = resp.status();
-                if !allowed_codes.contains(&status.as_u16()) {
+                if allowed_codes.contains(&status.as_u16()) {
+                   return true;
+                } else {
                     let content = resp.text();
                     if let Ok(ref content) = content {
                         // TODO: use mapping file for errors to ignore
                         if content.contains("Unknown login type")
                             || content.contains("Invalid login submission")
                             || content.contains("Invalid username or password")
+                            || content.contains("M_UNRECOGNIZED")
                         {
                             return true;
                         }
@@ -170,16 +175,19 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
     }
 }
 
-fn generate_post_targets(
+fn generate_post_put_targets(
     span: Span,
     path: String,
     path_description: &PathItem,
     structs: &mut Vec<proc_macro2::TokenStream>,
     request: Operation,
+    is_put: bool,
 ) -> proc_macro2::TokenStream {
     let function_path = request.operation_id.clone().unwrap();
     let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
     let struct_ident_body = format_ident!("{}", function_path.to_case(Case::UpperCamel));
+    let mut value_insteadof_struct = false;
+    let mut no_body = false;
     let struct_span = struct_ident_body.span();
     let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
     let function_span = function_ident.span();
@@ -191,29 +199,48 @@ fn generate_post_targets(
             let schema = json_obj.schema.clone().expect("Missing schema for body");
             if let Some(properties_obj) = schema.object {
                 let properties = properties_obj.properties;
-                for (key, value) in properties.iter() {
-                    let key_ident = format_ident!("{}", key.replace('.', "_").to_case(Case::Snake));
-                    if let Schema::Object(_type_definition) = value {
-                        struct_body.push(quote_spanned! { struct_span =>
-                            #[field_mutator(::fuzzcheck_serde_json_generator::ValueMutator = { json_value_mutator() })]
-                            #key_ident: ::serde_json::Value
-                        });
+                if !properties.is_empty() {
+                    for (key, value) in properties.iter() {
+                        let key_ident =
+                            format_ident!("{}", key.replace('.', "_").to_case(Case::Snake));
+                        if let Schema::Object(_type_definition) = value {
+                            struct_body.push(quote_spanned! { struct_span =>
+                                #key_ident: ::serde_json::Value
+                            });
+                        }
                     }
+
+                    // Generate body struct
+                    structs.push(quote_spanned! { span =>
+                        #[derive(::std::fmt::Debug, ::std::clone::Clone, ::serde::Serialize, ::serde::Deserialize, ::fuzzcheck::DefaultMutator)]
+                        struct #struct_ident_body {
+                            #(#struct_body),*
+                        }
+                    });
+                } else {
+                    value_insteadof_struct = true;
                 }
+            } else {
+                value_insteadof_struct = true;
             }
+        } else {
+            // Mostly a placeholder
+            structs.push(quote_spanned! { span =>
+                #[derive(::std::fmt::Debug, ::std::clone::Clone, ::serde::Serialize, ::serde::Deserialize, ::fuzzcheck::DefaultMutator)]
+                struct #struct_ident_body {
+                }
+            });
         }
+    } else {
+        no_body = true;
     }
 
-    // Generate body struct
-    structs.push(quote_spanned! { span =>
-        #[derive(::std::fmt::Debug, ::std::clone::Clone, ::serde::Serialize, ::serde::Deserialize, ::fuzzcheck::DefaultMutator)]
-        struct #struct_ident_body {
-            #(#struct_body),*
-        }
-    });
-
     let path = path.trim();
-    let mut path_code = quote_spanned! {function_span =>.post(format!("{}{}", server, #path))};
+    let mut path_code = if is_put {
+        quote_spanned! {function_span =>.put(format!("{}{}", server, #path))}
+    } else {
+        quote_spanned! {function_span =>.post(format!("{}{}", server, #path))}
+    };
     let path_args = extract_path_arguments(path);
     let mut format_string = format!("{{}}{path}");
     let mut format_helpers = Vec::new();
@@ -229,61 +256,101 @@ fn generate_post_targets(
             let i = syn::Index::from(1);
             let j = syn::Index::from(unknowns);
             // TODO: These are ones that are for sure wrong. We really need to see that we get instead random data from the fuzzer here.
-            let function_ident = quote! {fuzz_input.#i.#j};
+            let function_ident =
+                quote! {crate::truncate_string(&fuzz_input.#i.#j,255).replace(['/','\0'],"")};
             format_helpers.push(function_ident);
             unknowns += 1;
             unknowns_helper.push(quote! {String,})
         }
     }
     if !path_args.is_empty() {
-        path_code = quote_spanned! {function_span =>.post(format!(#format_string, server, #(#format_helpers),*))};
+        path_code = if is_put {
+            quote_spanned! {function_span =>.put(format!(#format_string, server, #(#format_helpers),*))}
+        } else {
+            quote_spanned! {function_span =>.post(format!(#format_string, server, #(#format_helpers),*))}
+        };
     }
 
     fn default_post_request(
         function_span: Span,
         path_code: proc_macro2::TokenStream,
+        no_body: bool,
     ) -> proc_macro2::TokenStream {
-        quote_spanned! { function_span =>
-            let resp = client
-                #path_code
-                .json(&json_data)
-                .send();
+        if !no_body {
+            quote_spanned! { function_span =>
+                let resp = client
+                    #path_code
+                    .json(&json_data)
+                    .send();
+            }
+        } else {
+            quote_spanned! { function_span =>
+                let resp = client
+                    #path_code
+                    .send();
+            }
         }
     }
 
     let request_body = if let Some(ref security) = request.security {
         if let Some(security) = security.first() {
             if security.contains_key("accessToken") {
-                quote_spanned! { function_span =>
-                    let access_token = crate::access_token();
-                    let resp = client
-                        #path_code
-                        .header("Authorization", format!("Bearer {}", access_token))
-                        .json(&json_data)
-                        .send();
+                if !no_body {
+                    quote_spanned! { function_span =>
+                        let access_token = crate::access_token();
+                        let resp = client
+                            #path_code
+                            .header("Authorization", format!("Bearer {}", access_token))
+                            .json(&json_data)
+                            .send();
+                    }
+                } else {
+                    quote_spanned! { function_span =>
+                        let access_token = crate::access_token();
+                        let resp = client
+                            #path_code
+                            .header("Authorization", format!("Bearer {}", access_token))
+                            .send();
+                    }
                 }
             } else {
-                default_post_request(function_span, path_code)
+                default_post_request(function_span, path_code, no_body)
             }
         } else {
-            default_post_request(function_span, path_code)
+            default_post_request(function_span, path_code, no_body)
         }
     } else {
-        default_post_request(function_span, path_code)
+        default_post_request(function_span, path_code, no_body)
     };
 
     let possible_error_codes = get_error_codes_for_path(function_span, request);
 
     let i = syn::Index::from(0);
+    let json_data_loder = if value_insteadof_struct {
+        quote! {
+            let mut json_data = fuzz_input.#i.clone();
+            if !json_data.is_object() {
+                let mut fake_obj_map = ::serde_json::Map::new();
+                fake_obj_map.insert("meow".to_string(), json_data);
+                json_data = ::serde_json::Value::Object(fake_obj_map);
+            }
+        }
+    } else if !no_body {
+        quote! {
+            let mut json_data = fuzz_input.#i.clone();
+        }
+    } else {
+        quote! {}
+    };
     let function_body = quote_spanned! { function_span =>
-        let mut json_data = fuzz_input.#i.clone();
+        #json_data_loder
 
         // TODO: iterate over the fields and automatically remove faulty characters
-        //  if let Some(user) = &json_data.user {
-        //    if user.contains('\0') {
-        //      json_data.user = Some(user.replace('\0', ""));
-        //    }
-        //  }
+        // if let Some(user) = &json_data.user {
+        //     if user.contains('\0') {
+        //         json_data.user = Some(user.replace('\0', ""));
+        //     }
+        // }
 
         let client = crate::client();
         let server = match std::env::var("MATRIX_SERVER") {
@@ -299,13 +366,16 @@ fn generate_post_targets(
 
         if let Ok(resp) = resp {
             let status = resp.status();
-            if !allowed_codes.contains(&status.as_u16()) {
+            if allowed_codes.contains(&status.as_u16()) {
+                return true;
+            } else {
                 let content = resp.text();
                 if let Ok(ref content) = content {
                     // TODO: use mapping file for errors to ignore
                     if content.contains("Unknown login type")
                         || content.contains("Invalid login submission")
                         || content.contains("Invalid username or password")
+                        || content.contains("M_UNRECOGNIZED")
                     {
                         return true;
                     }
@@ -317,10 +387,20 @@ fn generate_post_targets(
         false
     };
 
-    let function_params = if !unknowns_helper.is_empty() {
-        quote! {fuzz_input: &(crate::#struct_ident_body, (#(#unknowns_helper)*))}
+    let input = if value_insteadof_struct {
+        quote! {::serde_json::Value,}
+    } else if no_body {
+        quote! {}
     } else {
-        quote! {fuzz_input: &(crate::#struct_ident_body,)}
+        quote! {crate::#struct_ident_body,}
+    };
+
+    let function_params = if !unknowns_helper.is_empty() {
+        quote! {fuzz_input: &(#input (#(#unknowns_helper)*),)}
+    } else if no_body {
+        quote! {fuzz_input: &()}
+    } else {
+        quote! {fuzz_input: &(#input)}
     };
 
     let main_function = if let Some(description) = &path_description.description {
@@ -385,19 +465,27 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
         if let Some(request) = &path_description.get {
             tests.push(generate_get_targets(span, path, request.clone()));
         } else if let Some(request) = &path_description.post {
-            tests.push(generate_post_targets(
+            tests.push(generate_post_put_targets(
                 span,
                 path,
                 path_description,
                 &mut structs,
                 request.clone(),
+                false,
+            ));
+        } else if let Some(request) = &path_description.put {
+            tests.push(generate_post_put_targets(
+                span,
+                path,
+                path_description,
+                &mut structs,
+                request.clone(),
+                true,
             ));
         }
     }
 
     let expanded = quote! {
-        use ::fuzzcheck_serde_json_generator::json_value_mutator;
-
         #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
         struct LoginGet {
             pub flows: Vec<Flow>,
@@ -414,6 +502,17 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
             pub user_id: ::std::string::String,
             pub access_token: ::std::string::String,
             pub home_server: ::std::string::String,
+        }
+
+        fn truncate_string(s: &str, max_len: usize) -> &str {
+            if max_len >= s.len() {
+                return s;
+            }
+            let mut idx = max_len;
+            while !s.is_char_boundary(idx) {
+                idx -= 1;
+            }
+            &s[..idx]
         }
 
         #[coverage(off)]

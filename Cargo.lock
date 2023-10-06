@@ -133,7 +133,7 @@ dependencies = [
  "quote",
  "reqwest",
  "serde",
- "syn 2.0.37",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -291,7 +291,7 @@ checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.37",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -325,7 +325,7 @@ dependencies = [
 [[package]]
 name = "fuzzcheck"
 version = "0.12.1"
-source = "git+https://github.com/MTRNord/fuzzcheck-rs.git?branch=patch-1#83fbdc1a303f4d526b8126926af4a81a8e8c0fb2"
+source = "git+https://github.com/MTRNord/fuzzcheck-rs.git?branch=patch-1#143aa19753c2014f6c4944c2f4c8be32686295b7"
 dependencies = [
  "ahash",
  "bit-vec",
@@ -336,6 +336,7 @@ dependencies = [
  "fuzzcheck_common",
  "fuzzcheck_mutators_derive",
  "getopts",
+ "js_int",
  "libc",
  "md5",
  "nu-ansi-term",
@@ -349,7 +350,7 @@ dependencies = [
 [[package]]
 name = "fuzzcheck_common"
 version = "0.12.0"
-source = "git+https://github.com/MTRNord/fuzzcheck-rs.git?branch=patch-1#83fbdc1a303f4d526b8126926af4a81a8e8c0fb2"
+source = "git+https://github.com/MTRNord/fuzzcheck-rs.git?branch=patch-1#143aa19753c2014f6c4944c2f4c8be32686295b7"
 dependencies = [
  "getopts",
 ]
@@ -357,20 +358,11 @@ dependencies = [
 [[package]]
 name = "fuzzcheck_mutators_derive"
 version = "0.12.0"
-source = "git+https://github.com/MTRNord/fuzzcheck-rs.git?branch=patch-1#83fbdc1a303f4d526b8126926af4a81a8e8c0fb2"
+source = "git+https://github.com/MTRNord/fuzzcheck-rs.git?branch=patch-1#143aa19753c2014f6c4944c2f4c8be32686295b7"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "fuzzcheck_serde_json_generator"
-version = "0.1.1"
-source = "git+https://github.com/MTRNord/fuzzcheck_generators.git?branch=main#4526f2a2b26b74819c8d7e3f7dd529bbbbf2d78f"
-dependencies = [
- "fuzzcheck",
- "serde_json",
 ]
 
 [[package]]
@@ -566,6 +558,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "js_int"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d937f95470b270ce8b8950207715d71aa8e153c0d44c6684d59397ed4949160a"
+
+[[package]]
 name = "lazy-regex"
 version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -585,7 +583,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "syn 2.0.37",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -596,9 +594,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.148"
+version = "0.2.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cdc71e17332e86d2e1d38c1f99edcb6288ee11b815fb1a4b049eaa2114d369b"
+checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
 
 [[package]]
 name = "libz-sys"
@@ -630,7 +628,6 @@ dependencies = [
  "cfg-if",
  "codegen",
  "fuzzcheck",
- "fuzzcheck_serde_json_generator",
  "once_cell",
  "reqwest",
  "serde",
@@ -695,12 +692,11 @@ dependencies = [
 
 [[package]]
 name = "nu-ansi-term"
-version = "0.46.0"
+version = "0.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
+checksum = "c073d3c1930d0751774acf49e66653acecb416c3a54c6ec095a9b11caddb5a68"
 dependencies = [
- "overload",
- "winapi",
+ "windows-sys",
 ]
 
 [[package]]
@@ -772,7 +768,7 @@ checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.37",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -792,12 +788,6 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
-
-[[package]]
-name = "overload"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
 name = "percent-encoding"
@@ -825,9 +815,9 @@ checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.67"
+version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d433d9f1a3e8c1263d9456598b16fec66f4acc9a74dacffd35c7bb09b3a1328"
+checksum = "5b1106fec09662ec6dd98ccac0f81cef56984d0b49f75c92d8cbad76e20c005c"
 dependencies = [
  "unicode-ident",
 ]
@@ -1084,7 +1074,7 @@ checksum = "4eca7ac642d82aa35b60049a6eccb4be6be75e599bd2e9adb5f875a737654af2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.37",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -1169,9 +1159,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.37"
+version = "2.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7303ef2c05cd654186cb250d29049a24840ca25d2747c25c0381c8d9e2f582e8"
+checksum = "e96b79aaa137db8f61e26363a0c9b47d8b4ec75da28b7d1d614c2303e232408b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1407,7 +1397,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
- "syn 2.0.37",
+ "syn 2.0.38",
  "wasm-bindgen-shared",
 ]
 
@@ -1441,7 +1431,7 @@ checksum = "54681b18a46765f095758388f2d0cf16eb8d4169b639ab575a8f5693af210c7b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.37",
+ "syn 2.0.38",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]

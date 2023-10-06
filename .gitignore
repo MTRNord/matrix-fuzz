@@ -1,10 +1,12 @@
 target
 notes.md
 src/secrets.rs
-/fuzz
+fuzz
 meep.rs
 /weird_ones/security_issues
 /afl/*/out/*
 /.mypy_cache
 blurp.rs
 meow.rs
+dockerfiles/files
+dockerfiles/schemas

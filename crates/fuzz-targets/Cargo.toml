@@ -8,7 +8,6 @@ version = "0.1.0"
 [dependencies]
 cfg-if = "1"
 fuzzcheck = { git = "https://github.com/MTRNord/fuzzcheck-rs.git", branch = "patch-1" }
-fuzzcheck_serde_json_generator = { version = "0.1.0", git = "https://github.com/MTRNord/fuzzcheck_generators.git", branch = "main" }
 once_cell = "1.13.0"
 reqwest = { version = "0.11.11", features = [
     "blocking",
