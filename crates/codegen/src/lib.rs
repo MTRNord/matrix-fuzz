@@ -8,7 +8,7 @@ use okapi::{
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned};
-use syn::{parse_macro_input, LitStr};
+use syn::{parse_macro_input, Ident, LitStr};
 
 fn load_ref<T: for<'de> serde::de::Deserialize<'de> + Clone>(ref_or_object: &RefOr<T>) -> T {
     match ref_or_object {
@@ -42,8 +42,8 @@ fn extract_path_arguments(path: &str) -> Vec<Match> {
 
 fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_macro2::TokenStream {
     let function_path = request.operation_id.clone().unwrap();
-    let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
-    let fuzz_function_ident = format_ident!("fuzz_{}", function_ident);
+    let function_ident = Ident::new(&function_path.to_case(Case::Snake), Span::call_site());
+    let fuzz_function_ident = format_ident!("fuzz_{}", function_ident, span = Span::mixed_site());
     let function_span = function_ident.span();
 
     let path = path.trim();
@@ -59,6 +59,9 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
         if string_match.contains("roomId") {
             let function_ident = quote! {crate::create_fresh_room()};
             format_helpers.push(function_ident);
+        } else if string_match.contains("userId") {
+            let function_ident = quote! {crate::own_user_id()};
+            format_helpers.push(function_ident);
         } else {
             let j = syn::Index::from(unknowns);
             // TODO: These are ones that are for sure wrong. We really need to see that we get instead random data from the fuzzer here.
@@ -66,7 +69,7 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
                 quote! {crate::truncate_string(&fuzz_input.#j,255).replace(['/','\0'],"")};
             format_helpers.push(function_ident);
             unknowns += 1;
-            unknowns_helper.push(quote! {String,})
+            unknowns_helper.push(quote! {::std::string::String,})
         }
     }
     if !path_args.is_empty() {
@@ -109,16 +112,16 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
     let function_params = if !unknowns_helper.is_empty() {
         quote! {fuzz_input: &(#(#unknowns_helper)*)}
     } else {
-        quote! {_: &Vec<u8>}
+        quote! {_: &::std::vec::Vec<::std::primitive::u8>}
     };
 
     // Generate test code from here
     quote_spanned! { span=>
-        fn #function_ident(#function_params) -> bool {
+        fn #function_ident(#function_params) -> ::std::primitive::bool {
             let client = crate::client();
-            let server = match std::env::var("MATRIX_SERVER") {
-                Ok(v) => v,
-                Err(_) => "http://localhost:8008".to_string(),
+            let server = match ::std::env::var("MATRIX_SERVER") {
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(_) => "http://localhost:8008".to_string(),
             };
 
             #request_body
@@ -127,13 +130,13 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
                 #(#possible_error_codes)*
             ];
 
-            if let Ok(resp) = resp {
+            if let ::std::option::Option::Ok(resp) = resp {
                 let status = resp.status();
                 if allowed_codes.contains(&status.as_u16()) {
                    return true;
                 } else {
                     let content = resp.text();
-                    if let Ok(ref content) = content {
+                    if let ::std::option::Option::Ok(ref content) = content {
                         // TODO: use mapping file for errors to ignore
                         if content.contains("Unknown login type")
                             || content.contains("Invalid login submission")
@@ -153,9 +156,9 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
         #[test]
         fn #fuzz_function_ident() {
             let client = crate::client();
-            let server = match std::env::var("MATRIX_SERVER") {
-                Ok(v) => v,
-                Err(_) => "http://localhost:8008".to_string(),
+            let server = match ::std::env::var("MATRIX_SERVER") {
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(_) => "http://localhost:8008".to_string(),
             };
             // Healthcheck for matrix servers
             let resp = client
@@ -166,7 +169,7 @@ fn generate_get_targets(span: Span, path: String, request: Operation) -> proc_ma
                 panic!("Failed to connect");
             }
 
-            let result = fuzzcheck::fuzz_test(#function_ident)
+            let result = ::fuzzcheck::fuzz_test(#function_ident)
                 .default_options()
                 .stop_after_first_test_failure(true)
                 .launch();
@@ -184,8 +187,12 @@ fn generate_post_put_targets(
     is_put: bool,
 ) -> proc_macro2::TokenStream {
     let function_path = request.operation_id.clone().unwrap();
-    let function_ident = format_ident!("{}", function_path.to_case(Case::Snake));
-    let struct_ident_body = format_ident!("{}", function_path.to_case(Case::UpperCamel));
+    let function_ident = Ident::new(&function_path.to_case(Case::Snake), Span::call_site());
+    let struct_ident_body = format_ident!(
+        "{}",
+        function_path.to_case(Case::UpperCamel),
+        span = Span::mixed_site()
+    );
     let mut value_insteadof_struct = false;
     let mut no_body = false;
     let struct_span = struct_ident_body.span();
@@ -201,8 +208,11 @@ fn generate_post_put_targets(
                 let properties = properties_obj.properties;
                 if !properties.is_empty() {
                     for (key, value) in properties.iter() {
-                        let key_ident =
-                            format_ident!("{}", key.replace('.', "_").to_case(Case::Snake));
+                        let key_ident = format_ident!(
+                            "{}",
+                            key.replace('.', "_").to_case(Case::Snake),
+                            span = Span::mixed_site()
+                        );
                         if let Schema::Object(_type_definition) = value {
                             struct_body.push(quote_spanned! { struct_span =>
                                 #key_ident: ::serde_json::Value
@@ -212,7 +222,7 @@ fn generate_post_put_targets(
 
                     // Generate body struct
                     structs.push(quote_spanned! { span =>
-                        #[derive(::std::fmt::Debug, ::std::clone::Clone, ::serde::Serialize, ::serde::Deserialize, ::fuzzcheck::DefaultMutator)]
+                        #[derive(::std::fmt::Debug, ::std::clone::Clone, ::serde::Serialize, ::serde::Deserialize, ::fuzzcheck::DefaultMutator, ::arbitrary::Arbitrary)]
                         struct #struct_ident_body {
                             #(#struct_body),*
                         }
@@ -252,6 +262,9 @@ fn generate_post_put_targets(
         if string_match.contains("roomId") {
             let function_ident = quote! {crate::create_fresh_room()};
             format_helpers.push(function_ident);
+        } else if string_match.contains("userId") {
+            let function_ident = quote! {crate::own_user_id()};
+            format_helpers.push(function_ident);
         } else {
             let i = syn::Index::from(1);
             let j = syn::Index::from(unknowns);
@@ -260,7 +273,7 @@ fn generate_post_put_targets(
                 quote! {crate::truncate_string(&fuzz_input.#i.#j,255).replace(['/','\0'],"")};
             format_helpers.push(function_ident);
             unknowns += 1;
-            unknowns_helper.push(quote! {String,})
+            unknowns_helper.push(quote! {::std::string::String,})
         }
     }
     if !path_args.is_empty() {
@@ -329,10 +342,9 @@ fn generate_post_put_targets(
     let json_data_loder = if value_insteadof_struct {
         quote! {
             let mut json_data = fuzz_input.#i.clone();
+            // TODO: we really shouldnt do this since this leads to badly generated json
             if !json_data.is_object() {
-                let mut fake_obj_map = ::serde_json::Map::new();
-                fake_obj_map.insert("meow".to_string(), json_data);
-                json_data = ::serde_json::Value::Object(fake_obj_map);
+                return true;
             }
         }
     } else if !no_body {
@@ -353,9 +365,9 @@ fn generate_post_put_targets(
         // }
 
         let client = crate::client();
-        let server = match std::env::var("MATRIX_SERVER") {
-            Ok(v) => v,
-            Err(_) => "http://localhost:8008".to_string(),
+        let server = match ::std::env::var("MATRIX_SERVER") {
+            ::std::option::Option::Ok(v) => v,
+            ::std::option::Option::Err(_) => "http://localhost:8008".to_string(),
         };
 
         #request_body
@@ -364,13 +376,13 @@ fn generate_post_put_targets(
             #(#possible_error_codes)*
         ];
 
-        if let Ok(resp) = resp {
+        if let ::std::option::Option::Ok(resp) = resp {
             let status = resp.status();
             if allowed_codes.contains(&status.as_u16()) {
                 return true;
             } else {
                 let content = resp.text();
-                if let Ok(ref content) = content {
+                if let ::std::option::Option::Ok(ref content) = content {
                     // TODO: use mapping file for errors to ignore
                     if content.contains("Unknown login type")
                         || content.contains("Invalid login submission")
@@ -404,16 +416,16 @@ fn generate_post_put_targets(
     };
 
     let main_function = if let Some(description) = &path_description.description {
-        let description_literal = LitStr::new(description, Span::call_site());
+        let description_literal = LitStr::new(description, Span::mixed_site());
         quote_spanned! { span =>
             #[doc = #description_literal]
-            fn #function_ident(#function_params) -> bool {
+            fn #function_ident(#function_params) -> ::std::primitive::bool {
                 #function_body
             }
         }
     } else {
         quote_spanned! { span =>
-            fn #function_ident(#function_params) -> bool {
+            fn #function_ident(#function_params) -> ::std::primitive::bool {
                 #function_body
             }
         }
@@ -426,9 +438,9 @@ fn generate_post_put_targets(
         #[test]
         fn #fuzz_function_ident() {
             let client = crate::client();
-            let server = match std::env::var("MATRIX_SERVER") {
-                Ok(v) => v,
-                Err(_) => "http://localhost:8008".to_string(),
+            let server = match ::std::env::var("MATRIX_SERVER") {
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(_) => "http://localhost:8008".to_string(),
             };
             // Healthcheck for matrix servers
             let resp = client
@@ -439,7 +451,7 @@ fn generate_post_put_targets(
                 panic!("Failed to connect");
             }
 
-            let result = fuzzcheck::fuzz_test(#function_ident)
+            let result = ::fuzzcheck::fuzz_test(#function_ident)
                 .default_options()
                 .stop_after_first_test_failure(true)
                 .launch();
@@ -448,47 +460,49 @@ fn generate_post_put_targets(
     }
 }
 
-#[proc_macro]
-pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
-    let spec_url_ident = parse_macro_input!(input as LitStr);
-    let spec_url = spec_url_ident.value();
-    let span = spec_url_ident.span();
-
-    let mut structs = Vec::new();
-    let mut tests = Vec::new();
-
-    let parsed: OpenApi = reqwest::blocking::get(spec_url)
-        .expect("Unable to get spec api")
-        .json()
-        .expect("Unable to parse spec as openapi json");
-    for (path, ref path_description) in parsed.paths {
-        if let Some(request) = &path_description.get {
-            tests.push(generate_get_targets(span, path, request.clone()));
-        } else if let Some(request) = &path_description.post {
-            tests.push(generate_post_put_targets(
-                span,
-                path,
-                path_description,
-                &mut structs,
-                request.clone(),
-                false,
-            ));
-        } else if let Some(request) = &path_description.put {
-            tests.push(generate_post_put_targets(
-                span,
-                path,
-                path_description,
-                &mut structs,
-                request.clone(),
-                true,
-            ));
-        }
+fn generate_target(
+    tests: &mut Vec<proc_macro2::TokenStream>,
+    structs: &mut Vec<proc_macro2::TokenStream>,
+    path: String,
+    path_description: &PathItem,
+    span: Span,
+) {
+    if let Some(request) = &path_description.get {
+        tests.push(generate_get_targets(span, path, request.clone()));
+    } else if let Some(request) = &path_description.post {
+        tests.push(generate_post_put_targets(
+            span,
+            path,
+            path_description,
+            structs,
+            request.clone(),
+            false,
+        ));
+    } else if let Some(request) = &path_description.put {
+        tests.push(generate_post_put_targets(
+            span,
+            path,
+            path_description,
+            structs,
+            request.clone(),
+            true,
+        ));
     }
+}
 
-    let expanded = quote! {
+fn base_structure(
+    tests: Vec<proc_macro2::TokenStream>,
+    structs: Vec<proc_macro2::TokenStream>,
+) -> proc_macro2::TokenStream {
+    quote! {
+        #[doc(hidden)]
+        pub use ::core;
+        #[doc(hidden)]
+        pub use ::core::alloc;
+
         #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
         struct LoginGet {
-            pub flows: Vec<Flow>,
+            pub flows: ::std::vec::Vec<self::Flow>,
         }
 
         #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize, ::std::cmp::PartialEq, ::std::cmp::Eq)]
@@ -504,7 +518,7 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
             pub home_server: ::std::string::String,
         }
 
-        fn truncate_string(s: &str, max_len: usize) -> &str {
+        fn truncate_string(s: &::std::primitive::str, max_len: ::std::primitive::usize) -> &::std::primitive::str {
             if max_len >= s.len() {
                 return s;
             }
@@ -518,25 +532,25 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
         #[coverage(off)]
         fn login() -> ::std::string::String {
             let server = match ::std::env::var("MATRIX_SERVER") {
-                Ok(v) => v,
-                Err(_) => "http://localhost:8008".to_string(),
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(_) => "http://localhost:8008".to_string(),
             };
             let username = match ::std::env::var("MATRIX_USERNAME") {
-                Ok(v) => v,
-                Err(e) => panic!("$MATRIX_USERNAME is not set ({})", e),
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(e) => panic!("$MATRIX_USERNAME is not set ({})", e),
             };
             let password = match ::std::env::var("MATRIX_PASSWORD") {
-                Ok(v) => v,
-                Err(e) => panic!("$MATRIX_PASSWORD is not set ({})", e),
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(e) => panic!("$MATRIX_PASSWORD is not set ({})", e),
             };
             let client = crate::client();
-            let res: LoginGet = client
+            let res: self::LoginGet = client
                 .get(format!("{}/_matrix/client/v3/login", server))
                 .send()
                 .unwrap()
                 .json()
                 .unwrap();
-            assert!(res.flows.contains(&Flow {
+            assert!(res.flows.contains(&self::Flow {
                 type_: "m.login.password".to_string(),
             }));
 
@@ -544,7 +558,7 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
             map.insert("type", "m.login.password");
             map.insert("user", &username);
             map.insert("password", &password);
-            let res: LoginPost = client
+            let res: self::LoginPost = client
                 .post(format!("{}/_matrix/client/v3/login", server))
                 .json(&map)
                 .send()
@@ -576,27 +590,35 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
 
         #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
         struct RoomCreateHelperBody {
-            pub preset: String,
+            pub preset: ::std::string::String,
         }
 
         #[derive(::std::fmt::Debug, serde::Serialize, serde::Deserialize)]
         struct RoomCreateHelperResp {
-            pub room_id: String,
+            pub room_id: ::std::string::String,
         }
 
-        fn create_fresh_room() -> String {
+
+        fn own_user_id() -> ::std::string::String {
+            match ::std::env::var("MATRIX_USERNAME") {
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(e) => panic!("$MATRIX_USERNAME is not set ({})", e),
+            }
+        }
+
+        fn create_fresh_room() -> ::std::string::String {
             let client = crate::client();
-            let server = match std::env::var("MATRIX_SERVER") {
-                Ok(v) => v,
-                Err(_) => "http://localhost:8008".to_string(),
+            let server = match ::std::env::var("MATRIX_SERVER") {
+                ::std::option::Option::Ok(v) => v,
+                ::std::option::Option::Err(_) => "http://localhost:8008".to_string(),
             };
 
-            let data = RoomCreateHelperBody {
-                preset: String::from("private_chat")
+            let data = self::RoomCreateHelperBody {
+                preset: ::std::string::String::from("private_chat")
             };
 
             let access_token = crate::access_token();
-            let resp: RoomCreateHelperResp = client
+            let resp: self::RoomCreateHelperResp = client
                 .post(format!("{}/_matrix/client/v3/createRoom", server))
                 .header("Authorization", format!("Bearer {}", access_token))
                 .json(&data)
@@ -613,7 +635,27 @@ pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
         mod tests {
             #(#tests)*
         }
-    };
+    }
+}
+
+#[proc_macro]
+pub fn generate_fuzz_targets(input: TokenStream) -> TokenStream {
+    let spec_url_ident = parse_macro_input!(input as LitStr);
+    let spec_url = spec_url_ident.value();
+    let span = spec_url_ident.span();
+
+    let mut structs = Vec::new();
+    let mut tests = Vec::new();
+
+    let parsed: OpenApi = reqwest::blocking::get(spec_url)
+        .expect("Unable to get spec api")
+        .json()
+        .expect("Unable to parse spec as openapi json");
+    for (path, ref path_description) in parsed.paths {
+        generate_target(&mut tests, &mut structs, path, path_description, span);
+    }
+
+    let expanded = base_structure(tests, structs);
 
     TokenStream::from(expanded)
 }
